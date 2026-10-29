@@ -1,0 +1,28 @@
+[package]
+name = "rustcraft-auth"
+description = "Microsoft account sign-in, Xbox Live and Minecraft services authentication, and secure session storage."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rustcraft-core.workspace = true
+base64 = "0.22"
+getrandom = "0.3"
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
+open = "5.4.5"
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
