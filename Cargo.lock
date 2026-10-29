@@ -3567,6 +3567,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustcraft-renderer"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "image",
+ "pollster",
+ "rustcraft-world",
+ "serde",
+ "serde_json",
+ "tracing",
+ "wgpu",
+ "zip",
+]
+
+[[package]]
 name = "rustcraft-world"
 version = "0.1.0"
 dependencies = [

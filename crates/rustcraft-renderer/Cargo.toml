@@ -1,0 +1,22 @@
+[package]
+name = "rustcraft-renderer"
+description = "wgpu renderer for RustCraft's 1.8 engine: chunk meshing, texture arrays, lighting and fog."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rustcraft-world.workspace = true
+bytemuck = { version = "1.25.2", features = ["derive"] }
+glam.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+wgpu = "30.0.1"
+zip.workspace = true
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+pollster = "1.0"

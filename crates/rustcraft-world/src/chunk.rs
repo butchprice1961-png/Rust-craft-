@@ -89,11 +89,14 @@ pub struct Chunk {
     pub biomes: [u8; 256],
     /// Set by world generation or loading; cleared once lit.
     pub needs_light: bool,
+    /// Chunk NBT RustCraft does not model (entities, tile entities, ticks),
+    /// kept so saving a loaded world loses nothing.
+    pub extra: Option<Box<rustcraft_core::nbt::Compound>>,
 }
 
 impl Chunk {
     pub fn new(x: i32, z: i32) -> Self {
-        Self { x, z, sections: Default::default(), biomes: [1; 256], needs_light: true }
+        Self { x, z, sections: Default::default(), biomes: [1; 256], needs_light: true, extra: None }
     }
 
     /// Block at chunk-local coordinates; y outside 0..256 is air.

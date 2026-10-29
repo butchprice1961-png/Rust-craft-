@@ -16,6 +16,7 @@ rustcraft-auth = { path = "crates/rustcraft-auth" }
 rustcraft-platform = { path = "crates/rustcraft-platform" }
 rustcraft-mods = { path = "crates/rustcraft-mods" }
 rustcraft-world = { path = "crates/rustcraft-world" }
+rustcraft-renderer = { path = "crates/rustcraft-renderer" }
 
 anyhow = "1.0.104"
 dirs = "6.0.0"
