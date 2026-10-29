@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RustCraft
+Comment=Launcher and game client compatible with Minecraft: Java Edition
+Exec=rustcraft
+Icon=rustcraft
+Categories=Game;
+Terminal=false
+StartupWMClass=dev.rustcraft.RustCraft

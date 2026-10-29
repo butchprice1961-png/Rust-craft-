@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use eframe::egui::{
-    self, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Frame, Margin,
-    RichText, Stroke, TextStyle, Vec2,
+    self, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Frame, Margin, RichText, Stroke,
+    TextStyle, Vec2,
 };
 
 pub const BG: Color32 = Color32::from_rgb(0x15, 0x16, 0x19);
@@ -29,34 +29,16 @@ pub fn semibold() -> FontFamily {
 
 pub fn install(ctx: &egui::Context, reduced_motion: bool) {
     let mut fonts = FontDefinitions::default();
-    fonts.font_data.insert(
-        "Inter".into(),
-        Arc::new(FontData::from_static(include_bytes!(
-            "../assets/fonts/Inter-Regular.ttf"
-        ))),
-    );
+    fonts
+        .font_data
+        .insert("Inter".into(), Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Inter-Regular.ttf"))));
     fonts.font_data.insert(
         "Inter-SemiBold".into(),
-        Arc::new(FontData::from_static(include_bytes!(
-            "../assets/fonts/Inter-SemiBold.ttf"
-        ))),
+        Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Inter-SemiBold.ttf"))),
     );
-    let fallbacks = fonts
-        .families
-        .get(&FontFamily::Proportional)
-        .cloned()
-        .unwrap_or_default();
-    fonts
-        .families
-        .entry(FontFamily::Proportional)
-        .or_default()
-        .insert(0, "Inter".into());
-    fonts.families.insert(
-        semibold(),
-        std::iter::once("Inter-SemiBold".to_string())
-            .chain(fallbacks)
-            .collect(),
-    );
+    let fallbacks = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
+    fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "Inter".into());
+    fonts.families.insert(semibold(), std::iter::once("Inter-SemiBold".to_string()).chain(fallbacks).collect());
     ctx.set_fonts(fonts);
 
     ctx.set_theme(egui::Theme::Dark);
@@ -64,18 +46,9 @@ pub fn install(ctx: &egui::Context, reduced_motion: bool) {
         style.text_styles = [
             (TextStyle::Heading, FontId::new(24.0, semibold())),
             (TextStyle::Body, FontId::new(14.5, FontFamily::Proportional)),
-            (
-                TextStyle::Button,
-                FontId::new(14.5, FontFamily::Proportional),
-            ),
-            (
-                TextStyle::Small,
-                FontId::new(12.0, FontFamily::Proportional),
-            ),
-            (
-                TextStyle::Monospace,
-                FontId::new(12.5, FontFamily::Monospace),
-            ),
+            (TextStyle::Button, FontId::new(14.5, FontFamily::Proportional)),
+            (TextStyle::Small, FontId::new(12.0, FontFamily::Proportional)),
+            (TextStyle::Monospace, FontId::new(12.5, FontFamily::Monospace)),
         ]
         .into();
         style.spacing.item_spacing = Vec2::new(10.0, 10.0);
@@ -136,15 +109,10 @@ pub fn card() -> Frame {
 
 /// The large accent call-to-action button.
 pub fn primary(text: &str) -> egui::Button<'static> {
-    egui::Button::new(
-        RichText::new(text.to_owned())
-            .family(semibold())
-            .size(17.0)
-            .color(Color32::WHITE),
-    )
-    .fill(ACCENT)
-    .corner_radius(CornerRadius::same(10))
-    .min_size(Vec2::new(180.0, 46.0))
+    egui::Button::new(RichText::new(text.to_owned()).family(semibold()).size(17.0).color(Color32::WHITE))
+        .fill(ACCENT)
+        .corner_radius(CornerRadius::same(10))
+        .min_size(Vec2::new(180.0, 46.0))
 }
 
 pub fn secondary(text: &str) -> egui::Button<'static> {
@@ -152,17 +120,13 @@ pub fn secondary(text: &str) -> egui::Button<'static> {
 }
 
 pub fn danger(text: &str) -> egui::Button<'static> {
-    egui::Button::new(RichText::new(text.to_owned()).color(Color32::WHITE))
-        .fill(DANGER.linear_multiply(0.85))
+    egui::Button::new(RichText::new(text.to_owned()).color(Color32::WHITE)).fill(DANGER.linear_multiply(0.85))
 }
 
 /// A pill label. Painted directly so it keeps its size in any layout.
 pub fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), FontId::proportional(11.5), color);
-    let (rect, _) =
-        ui.allocate_exact_size(galley.size() + Vec2::new(16.0, 6.0), egui::Sense::hover());
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), FontId::proportional(11.5), color);
+    let (rect, _) = ui.allocate_exact_size(galley.size() + Vec2::new(16.0, 6.0), egui::Sense::hover());
     ui.painter().rect(
         rect,
         CornerRadius::same(255),
@@ -170,8 +134,7 @@ pub fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         Stroke::new(1.0, color.linear_multiply(0.5)),
         egui::StrokeKind::Inside,
     );
-    ui.painter()
-        .galley(rect.center() - galley.size() / 2.0, galley, color);
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, color);
 }
 
 pub fn title(ui: &mut egui::Ui, text: &str, subtitle: &str) {
@@ -183,12 +146,7 @@ pub fn title(ui: &mut egui::Ui, text: &str, subtitle: &str) {
 }
 
 pub fn section(ui: &mut egui::Ui, text: &str) {
-    ui.label(
-        RichText::new(text)
-            .family(semibold())
-            .size(15.5)
-            .color(TEXT),
-    );
+    ui.label(RichText::new(text).family(semibold()).size(15.5).color(TEXT));
 }
 
 pub fn muted(text: impl Into<String>) -> RichText {

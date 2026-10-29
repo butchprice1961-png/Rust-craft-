@@ -66,21 +66,14 @@ impl AccountsView {
 
 pub enum PlayState {
     Idle,
-    Preparing {
-        stage: Stage,
-        progress: Arc<Progress>,
-        cancel: CancellationToken,
-    },
+    Preparing { stage: Stage, progress: Arc<Progress>, cancel: CancellationToken },
     Starting,
     Failed(LaunchError),
 }
 
 pub enum SignIn {
     Idle,
-    Waiting {
-        url: Option<String>,
-        cancel: CancellationToken,
-    },
+    Waiting { url: Option<String>, cancel: CancellationToken },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,11 +142,7 @@ pub struct LauncherApp {
 }
 
 impl LauncherApp {
-    pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        core: Arc<Core>,
-        smoke: Option<crate::Smoke>,
-    ) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, core: Arc<Core>, smoke: Option<crate::Smoke>) -> Self {
         let settings = core.settings.lock().unwrap().clone();
         theme::install(&cc.egui_ctx, settings.reduced_motion);
         let (tx, rx) = channel();
@@ -177,10 +166,7 @@ impl LauncherApp {
             edit: None,
             confirm_delete: None,
             java: None,
-            java_path_text: settings
-                .java_path
-                .map(|p| p.display().to_string())
-                .unwrap_or_default(),
+            java_path_text: settings.java_path.map(|p| p.display().to_string()).unwrap_or_default(),
             last_outcome,
             closing: false,
             smoke: smoke.as_ref().map(|s| SmokeTest {
@@ -219,11 +205,7 @@ impl LauncherApp {
             Level::Warn => tracing::warn!("{text}"),
             Level::Info => tracing::info!("{text}"),
         }
-        self.notices.push(Notice {
-            level,
-            text,
-            at: Instant::now(),
-        });
+        self.notices.push(Notice { level, text, at: Instant::now() });
     }
 
     /// Runs `work` on the I/O runtime and delivers its event to the UI.
@@ -240,33 +222,20 @@ impl LauncherApp {
 
     pub fn refresh_manifest(&mut self) {
         let core = self.core.clone();
-        self.spawn(async move {
-            Event::Manifest(
-                core.installer
-                    .manifest()
-                    .await
-                    .map(Arc::new)
-                    .map_err(|e| e.to_string()),
-            )
-        });
+        self.spawn(
+            async move { Event::Manifest(core.installer.manifest().await.map(Arc::new).map_err(|e| e.to_string())) },
+        );
     }
 
     pub fn discover_java(&mut self) {
         self.spawn(async move {
-            Event::Java(
-                tokio::task::spawn_blocking(rustcraft_platform::discover_java)
-                    .await
-                    .unwrap_or_default(),
-            )
+            Event::Java(tokio::task::spawn_blocking(rustcraft_platform::discover_java).await.unwrap_or_default())
         });
     }
 
     pub fn selected_instance(&self) -> Option<&Instance> {
         let selected = self.core.settings.lock().unwrap().selected_instance.clone();
-        self.instances
-            .iter()
-            .find(|i| Some(&i.name) == selected.as_ref())
-            .or(self.instances.first())
+        self.instances.iter().find(|i| Some(&i.name) == selected.as_ref()).or(self.instances.first())
     }
 
     pub fn select_instance(&mut self, name: &str) {
@@ -279,10 +248,7 @@ impl LauncherApp {
     }
 
     pub fn is_installed(&self, version: &str) -> bool {
-        self.core
-            .dirs
-            .version_dir(version)
-            .is_ok_and(|d| d.join(format!("{version}.jar")).exists())
+        self.core.dirs.version_dir(version).is_ok_and(|d| d.join(format!("{version}.jar")).exists())
     }
 
     pub fn busy(&self) -> bool {
@@ -295,11 +261,7 @@ impl LauncherApp {
         };
         let progress = Arc::new(Progress::default());
         let cancel = CancellationToken::new();
-        self.play = PlayState::Preparing {
-            stage: Stage::Account,
-            progress: progress.clone(),
-            cancel: cancel.clone(),
-        };
+        self.play = PlayState::Preparing { stage: Stage::Account, progress: progress.clone(), cancel: cancel.clone() };
         self.last_outcome = None;
         *self.core.last_outcome.lock().unwrap() = None;
         let (core, tx, ctx) = (self.core.clone(), self.tx.clone(), self.ctx.clone());
@@ -312,8 +274,7 @@ impl LauncherApp {
                     ctx.request_repaint();
                 }
             };
-            let prepared =
-                game::prepare(&core, &inst, manifest, offline, &progress, &cancel, &stage).await;
+            let prepared = game::prepare(&core, &inst, manifest, offline, &progress, &cancel, &stage).await;
             if cancel.is_cancelled() {
                 return Event::LaunchCancelled;
             }
@@ -347,17 +308,11 @@ impl LauncherApp {
 
     pub fn start_sign_in(&mut self) {
         let Some(auth) = self.core.auth.clone() else {
-            self.notify(
-                Level::Error,
-                rustcraft_auth::AuthError::NotConfigured.to_string(),
-            );
+            self.notify(Level::Error, rustcraft_auth::AuthError::NotConfigured.to_string());
             return;
         };
         let cancel = CancellationToken::new();
-        self.sign_in = SignIn::Waiting {
-            url: None,
-            cancel: cancel.clone(),
-        };
+        self.sign_in = SignIn::Waiting { url: None, cancel: cancel.clone() };
         let (core, tx, ctx) = (self.core.clone(), self.tx.clone(), self.ctx.clone());
         let list_tx = self.tx.clone();
         self.spawn(async move {
@@ -375,14 +330,10 @@ impl LauncherApp {
                     let _ = list_tx.send(Event::Accounts(snapshot(&accounts)));
                     match result {
                         Ok(warning) => Event::SignInDone(SignInResult::Ok(warning)),
-                        Err(e) => Event::SignInDone(SignInResult::Failed(format!(
-                            "Could not save the account: {e}"
-                        ))),
+                        Err(e) => Event::SignInDone(SignInResult::Failed(format!("Could not save the account: {e}"))),
                     }
                 }
-                Err(rustcraft_auth::AuthError::Cancelled) => {
-                    Event::SignInDone(SignInResult::Cancelled)
-                }
+                Err(rustcraft_auth::AuthError::Cancelled) => Event::SignInDone(SignInResult::Cancelled),
                 Err(e) => Event::SignInDone(SignInResult::Failed(e.to_string())),
             }
         });
@@ -406,13 +357,10 @@ impl LauncherApp {
     pub fn load_fabric_loaders(&mut self, game_version: String) {
         let http = self.core.http.clone();
         self.spawn(async move {
-            let result = rustcraft_mods::loader::fabric_loaders(
-                &http,
-                rustcraft_mods::loader::FABRIC_META,
-                &game_version,
-            )
-            .await
-            .map_err(|e| e.to_string());
+            let result =
+                rustcraft_mods::loader::fabric_loaders(&http, rustcraft_mods::loader::FABRIC_META, &game_version)
+                    .await
+                    .map_err(|e| e.to_string());
             Event::Loaders(game_version, result)
         });
     }
@@ -437,11 +385,7 @@ impl LauncherApp {
                 self.sign_in = SignIn::Idle;
                 match result {
                     SignInResult::Ok(warning) => {
-                        let name = self
-                            .accounts
-                            .active()
-                            .map(|a| a.name.clone())
-                            .unwrap_or_default();
+                        let name = self.accounts.active().map(|a| a.name.clone()).unwrap_or_default();
                         self.notify(Level::Info, format!("Signed in as {name}."));
                         if let Some(w) = warning {
                             self.notify(Level::Warn, w);
@@ -467,11 +411,8 @@ impl LauncherApp {
                 if let Some(draft) = &mut self.new_instance {
                     let loaders = match result {
                         Ok(list) => {
-                            draft.loader_choice = list
-                                .iter()
-                                .find(|l| l.stable)
-                                .or(list.first())
-                                .map(|l| l.version.clone());
+                            draft.loader_choice =
+                                list.iter().find(|l| l.stable).or(list.first()).map(|l| l.version.clone());
                             Loaders::Loaded(list)
                         }
                         Err(e) => Loaders::Failed(e),
@@ -500,9 +441,7 @@ impl LauncherApp {
                 self.last_outcome = Some(outcome);
             }
             Ok(None) => {
-                if running.ready.load(Ordering::Relaxed)
-                    || running.started_at.elapsed() > READY_FALLBACK
-                {
+                if running.ready.load(Ordering::Relaxed) || running.started_at.elapsed() > READY_FALLBACK {
                     // The supervisor loop in main keeps watching the game and
                     // reopens this window when it exits.
                     if !std::mem::replace(&mut self.closing, true) {
@@ -535,13 +474,7 @@ impl LauncherApp {
             ctx.request_screenshot(move |image| {
                 let [w, h] = image.size;
                 let rgba: Vec<u8> = image.pixels.iter().flat_map(|p| p.to_array()).collect();
-                match image::save_buffer(
-                    &output,
-                    &rgba,
-                    w as u32,
-                    h as u32,
-                    image::ExtendedColorType::Rgba8,
-                ) {
+                match image::save_buffer(&output, &rgba, w as u32, h as u32, image::ExtendedColorType::Rgba8) {
                     Ok(()) => println!("smoke test: wrote {}", output.display()),
                     Err(e) => eprintln!("smoke test: could not save screenshot: {e}"),
                 }
@@ -559,10 +492,7 @@ pub enum AccountChange {
 }
 
 fn snapshot(accounts: &rustcraft_auth::Accounts) -> AccountsView {
-    AccountsView {
-        records: accounts.records().to_vec(),
-        active: accounts.active().map(|r| r.id.clone()),
-    }
+    AccountsView { records: accounts.records().to_vec(), active: accounts.active().map(|r| r.id.clone()) }
 }
 
 impl eframe::App for LauncherApp {

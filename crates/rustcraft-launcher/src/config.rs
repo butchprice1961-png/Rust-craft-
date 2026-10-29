@@ -116,10 +116,8 @@ impl Instance {
             // Both keys are written: 1.8–1.15 read `fancyGraphics`, 1.16+
             // read `graphicsMode`; each version ignores the other.
             let fancy = graphics == Graphics::Fancy;
-            let text = format!(
-                "renderDistance:{view_distance}\nfancyGraphics:{fancy}\ngraphicsMode:{}\n",
-                u8::from(fancy)
-            );
+            let text =
+                format!("renderDistance:{view_distance}\nfancyGraphics:{fancy}\ngraphicsMode:{}\n", u8::from(fancy));
             write_atomic(&options, text.as_bytes())?;
         }
         self.save(dirs)
@@ -168,10 +166,7 @@ pub fn validate_name(name: &str) -> Result<(), &'static str> {
     if trimmed.len() > 48 {
         return Err("Use at most 48 characters.");
     }
-    if trimmed != name
-        || name.starts_with('.')
-        || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|'])
-    {
+    if trimmed != name || name.starts_with('.') || name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
         return Err("Use letters, numbers, spaces, - or _ (no leading/trailing spaces or dots).");
     }
     Ok(())
@@ -194,34 +189,19 @@ mod tests {
         let mut inst = Instance::new("PvP 1.8", "1.8.9", Loader::Vanilla);
         inst.create(&dirs, 10, Graphics::Fancy).unwrap();
         let options = tmp.path().join("instances/PvP 1.8/options.txt");
-        assert!(
-            std::fs::read_to_string(&options)
-                .unwrap()
-                .contains("renderDistance:10")
-        );
-        assert!(
-            inst.create(&dirs, 10, Graphics::Fancy).is_err(),
-            "duplicate name accepted"
-        );
+        assert!(std::fs::read_to_string(&options).unwrap().contains("renderDistance:10"));
+        assert!(inst.create(&dirs, 10, Graphics::Fancy).is_err(), "duplicate name accepted");
 
         inst.max_memory_mb = 4096;
-        inst.loader = Loader::Fabric {
-            version: "0.16.10".into(),
-        };
+        inst.loader = Loader::Fabric { version: "0.16.10".into() };
         inst.save(&dirs).unwrap();
         let loaded = load_instances(&dirs);
         assert_eq!(loaded, [inst.clone()]);
 
         // A second instance in a dir that already has options keeps them.
         std::fs::create_dir_all(tmp.path().join("instances/Old")).unwrap();
-        std::fs::write(
-            tmp.path().join("instances/Old/options.txt"),
-            "renderDistance:2\n",
-        )
-        .unwrap();
-        Instance::new("Old", "1.12.2", Loader::Vanilla)
-            .create(&dirs, 16, Graphics::Fast)
-            .unwrap();
+        std::fs::write(tmp.path().join("instances/Old/options.txt"), "renderDistance:2\n").unwrap();
+        Instance::new("Old", "1.12.2", Loader::Vanilla).create(&dirs, 16, Graphics::Fast).unwrap();
         assert_eq!(
             std::fs::read_to_string(tmp.path().join("instances/Old/options.txt")).unwrap(),
             "renderDistance:2\n"
@@ -229,27 +209,14 @@ mod tests {
 
         // Unreadable instance files are skipped, not fatal.
         std::fs::create_dir_all(tmp.path().join("instances/Broken")).unwrap();
-        std::fs::write(
-            tmp.path().join("instances/Broken/instance.toml"),
-            "not = [valid",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("instances/Broken/instance.toml"), "not = [valid").unwrap();
         assert_eq!(load_instances(&dirs).len(), 2);
     }
 
     #[test]
     fn names_are_validated() {
         assert!(validate_name("My World 1.8").is_ok());
-        for bad in [
-            "",
-            " x",
-            "x ",
-            "../x",
-            "a/b",
-            ".hidden",
-            "a:b",
-            &"x".repeat(49),
-        ] {
+        for bad in ["", " x", "x ", "../x", "a/b", ".hidden", "a:b", &"x".repeat(49)] {
             assert!(validate_name(bad).is_err(), "{bad:?}");
         }
     }

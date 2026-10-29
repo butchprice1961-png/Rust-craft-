@@ -10,9 +10,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tokio_util::sync::CancellationToken;
 
 use rustcraft_assets::java::{RUNTIME_INDEX_URL, runtime_platform};
-use rustcraft_assets::{
-    LaunchAuth, LaunchCommand, LaunchOptions, Progress, VersionJson, build_command,
-};
+use rustcraft_assets::{LaunchAuth, LaunchCommand, LaunchOptions, Progress, VersionJson, build_command};
 use rustcraft_auth::AuthError;
 use rustcraft_core::fs::unix_time;
 use rustcraft_platform::{discover_java, pick_java, probe_java};
@@ -21,12 +19,7 @@ use crate::config::{Instance, Loader};
 use crate::core::Core;
 
 /// Lines that show the game has created its window and is running.
-const READY_MARKERS: &[&str] = &[
-    "Setting user:",
-    "LWJGL Version",
-    "Backend library:",
-    "RUSTCRAFT_READY",
-];
+const READY_MARKERS: &[&str] = &["Setting user:", "LWJGL Version", "Backend library:", "RUSTCRAFT_READY"];
 
 /// If no marker appears, the launcher still hides after this long.
 pub const READY_FALLBACK: Duration = Duration::from_secs(40);
@@ -65,18 +58,12 @@ pub struct LaunchError {
 
 impl<E: std::fmt::Display> From<E> for LaunchError {
     fn from(e: E) -> Self {
-        Self {
-            message: e.to_string(),
-            offline_possible: false,
-        }
+        Self { message: e.to_string(), offline_possible: false }
     }
 }
 
 fn fail(message: impl Into<String>) -> LaunchError {
-    LaunchError {
-        message: message.into(),
-        offline_possible: false,
-    }
+    LaunchError { message: message.into(), offline_possible: false }
 }
 
 /// Everything up to (not including) starting the process: account, loader,
@@ -97,12 +84,7 @@ pub async fn prepare(
         Loader::Vanilla => inst.game_version.clone(),
         Loader::Fabric { version } => {
             let id = format!("fabric-loader-{version}-{}", inst.game_version);
-            if !core
-                .dirs
-                .version_dir(&id)?
-                .join(format!("{id}.json"))
-                .exists()
-            {
+            if !core.dirs.version_dir(&id)?.join(format!("{id}.json")).exists() {
                 stage(Stage::Loader);
                 rustcraft_mods::loader::install_fabric(
                     &core.http,
@@ -118,10 +100,7 @@ pub async fn prepare(
     };
 
     stage(Stage::Metadata);
-    let version = core
-        .installer
-        .resolve(&version_id, manifest.as_deref())
-        .await?;
+    let version = core.installer.resolve(&version_id, manifest.as_deref()).await?;
 
     stage(Stage::Download);
     let installed = core.installer.install(&version, progress, cancel).await?;
@@ -145,21 +124,16 @@ pub async fn prepare(
     Ok(build_command(&installed, &opts, core.installer.platform)?)
 }
 
-async fn launch_auth(
-    core: &Core,
-    inst: &Instance,
-    offline: bool,
-) -> Result<LaunchAuth, LaunchError> {
+async fn launch_auth(core: &Core, inst: &Instance, offline: bool) -> Result<LaunchAuth, LaunchError> {
     let mut accounts = core.accounts.lock().await;
-    let record = accounts.active().cloned().ok_or_else(|| {
-        fail("Sign in with a Microsoft account that owns Minecraft: Java Edition to play.")
-    })?;
+    let record = accounts
+        .active()
+        .cloned()
+        .ok_or_else(|| fail("Sign in with a Microsoft account that owns Minecraft: Java Edition to play."))?;
     let recently_verified = unix_time().saturating_sub(record.verified_at) < OFFLINE_GRACE_SECS;
     if offline {
         if !recently_verified {
-            return Err(fail(
-                "Offline play needs an account verified online in the last 30 days.",
-            ));
+            return Err(fail("Offline play needs an account verified online in the last 30 days."));
         }
         // The game accepts any token for singleplayer; online features stay unavailable.
         return Ok(LaunchAuth {
@@ -171,17 +145,11 @@ async fn launch_auth(
             client_id: String::new(),
         });
     }
-    let auth = core
-        .auth
-        .as_ref()
-        .ok_or_else(|| fail(AuthError::NotConfigured.to_string()))?;
-    let session = accounts
-        .session(auth, &record.id)
-        .await
-        .map_err(|e| LaunchError {
-            offline_possible: matches!(e, AuthError::Network { .. }) && recently_verified,
-            message: e.to_string(),
-        })?;
+    let auth = core.auth.as_ref().ok_or_else(|| fail(AuthError::NotConfigured.to_string()))?;
+    let session = accounts.session(auth, &record.id).await.map_err(|e| LaunchError {
+        offline_possible: matches!(e, AuthError::Network { .. }) && recently_verified,
+        message: e.to_string(),
+    })?;
     if inst.server.as_deref().is_some_and(|s| !s.trim().is_empty())
         && let Some(reason) = session.multiplayer.blocked_reason()
     {
@@ -205,10 +173,7 @@ async fn choose_java(
     cancel: &CancellationToken,
 ) -> Result<PathBuf, LaunchError> {
     let need = version.java_major();
-    let override_path = inst
-        .java_path
-        .clone()
-        .or_else(|| core.settings.lock().unwrap().java_path.clone());
+    let override_path = inst.java_path.clone().or_else(|| core.settings.lock().unwrap().java_path.clone());
     if let Some(path) = override_path {
         let probe_path = path.clone();
         let java = tokio::task::spawn_blocking(move || probe_java(&probe_path))
@@ -223,26 +188,16 @@ async fn choose_java(
         return Ok(java.path);
     }
 
-    let component = version
-        .java_version
-        .as_ref()
-        .map(|j| j.component.clone())
-        .unwrap_or_else(|| "jre-legacy".into());
+    let component = version.java_version.as_ref().map(|j| j.component.clone()).unwrap_or_else(|| "jre-legacy".into());
     if runtime_platform(core.installer.platform).is_some() {
-        match core
-            .installer
-            .install_java(RUNTIME_INDEX_URL, &component, progress, cancel)
-            .await
-        {
+        match core.installer.install_java(RUNTIME_INDEX_URL, &component, progress, cancel).await {
             Ok(path) => return Ok(path),
-            Err(rustcraft_assets::AssetsError::Download(
-                rustcraft_assets::DownloadError::Cancelled,
-            )) => {
+            Err(rustcraft_assets::AssetsError::Download(rustcraft_assets::DownloadError::Cancelled)) => {
                 return Err(fail("Cancelled."));
             }
-            Err(e) => tracing::warn!(
-                "Mojang Java runtime {component} unavailable ({e}); looking for an installed Java"
-            ),
+            Err(e) => {
+                tracing::warn!("Mojang Java runtime {component} unavailable ({e}); looking for an installed Java")
+            }
         }
     }
     let installs = tokio::task::spawn_blocking(discover_java).await?;
@@ -279,11 +234,7 @@ pub struct GameOutcome {
 impl GameOutcome {
     pub fn summary(&self) -> String {
         match (self.success, self.exit_code) {
-            (true, _) => format!(
-                "{} closed normally after {}.",
-                self.instance,
-                format_duration(self.played)
-            ),
+            (true, _) => format!("{} closed normally after {}.", self.instance, format_duration(self.played)),
             (false, Some(code)) if self.early => {
                 format!("{} failed to start (exit code {code}).", self.instance)
             }
@@ -309,11 +260,7 @@ pub fn format_ago(unix: u64) -> String {
 
 pub fn format_duration(d: Duration) -> String {
     let mins = d.as_secs() / 60;
-    if mins >= 60 {
-        format!("{}h {}m", mins / 60, mins % 60)
-    } else {
-        format!("{}m {}s", mins, d.as_secs() % 60)
-    }
+    if mins >= 60 { format!("{}h {}m", mins / 60, mins % 60) } else { format!("{}m {}s", mins, d.as_secs() % 60) }
 }
 
 /// Starts the game with its output captured to a log file in `logs_dir`.
@@ -324,31 +271,14 @@ pub fn spawn(
     on_ready: impl Fn() + Send + Sync + Clone + 'static,
 ) -> io::Result<RunningGame> {
     std::fs::create_dir_all(logs_dir)?;
-    let safe_name: String = instance
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let safe_name: String = instance.chars().map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' }).collect();
     let log_path = logs_dir.join(format!("{safe_name}-{}.log", unix_time()));
     let mut log = io::LineWriter::new(std::fs::File::create(&log_path)?);
-    writeln!(
-        log,
-        "[RustCraft] {} {}",
-        cmd.program.display(),
-        cmd.redacted_args().join(" ")
-    )?;
+    writeln!(log, "[RustCraft] {} {}", cmd.program.display(), cmd.redacted_args().join(" "))?;
     let log = Arc::new(Mutex::new(log));
 
     let mut command = cmd.to_command();
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -358,20 +288,12 @@ pub fn spawn(
     let mut child = command.spawn()?;
     let ready = Arc::new(AtomicBool::new(false));
     let streams: [Option<Box<dyn Read + Send>>; 2] = [
-        child
-            .stdout
-            .take()
-            .map(|s| Box::new(s) as Box<dyn Read + Send>),
-        child
-            .stderr
-            .take()
-            .map(|s| Box::new(s) as Box<dyn Read + Send>),
+        child.stdout.take().map(|s| Box::new(s) as Box<dyn Read + Send>),
+        child.stderr.take().map(|s| Box::new(s) as Box<dyn Read + Send>),
     ];
     for stream in streams.into_iter().flatten() {
         let (log, ready, on_ready) = (log.clone(), ready.clone(), on_ready.clone());
-        std::thread::Builder::new()
-            .name("game-log".into())
-            .spawn(move || pump(stream, &log, &ready, &on_ready))?;
+        std::thread::Builder::new().name("game-log".into()).spawn(move || pump(stream, &log, &ready, &on_ready))?;
     }
     Ok(RunningGame {
         child,
@@ -416,11 +338,7 @@ impl RunningGame {
             success,
             early: !self.ready.load(Ordering::Relaxed),
             log_path: self.log_path.clone(),
-            crash_report: if success {
-                None
-            } else {
-                newest_crash_report(&self.game_dir, self.started)
-            },
+            crash_report: if success { None } else { newest_crash_report(&self.game_dir, self.started) },
             played: self.started_at.elapsed(),
         }
     }
@@ -443,10 +361,7 @@ fn newest_crash_report(game_dir: &Path, since: SystemTime) -> Option<PathBuf> {
             }
         }
     }
-    candidates
-        .into_iter()
-        .max_by_key(|(m, _)| *m)
-        .map(|(_, p)| p)
+    candidates.into_iter().max_by_key(|(m, _)| *m).map(|(_, p)| p)
 }
 
 /// Turns Log4j2 XML events (the official client's stdout format when its
@@ -480,16 +395,9 @@ impl Log4jParser {
 
 fn format_event(xml: &str) -> String {
     let attr = |name: &str| {
-        xml.split(&format!(" {name}=\""))
-            .nth(1)
-            .and_then(|s| s.split('"').next())
-            .unwrap_or("")
-            .to_string()
+        xml.split(&format!(" {name}=\"")).nth(1).and_then(|s| s.split('"').next()).unwrap_or("").to_string()
     };
-    let mut cdata = xml
-        .split("<![CDATA[")
-        .skip(1)
-        .filter_map(|s| s.split("]]>").next());
+    let mut cdata = xml.split("<![CDATA[").skip(1).filter_map(|s| s.split("]]>").next());
     let message = cdata.next().unwrap_or("").trim_end();
     let mut line = format!("[{}/{}]: {message}", attr("thread"), attr("level"));
     if let Some(throwable) = cdata.next() {
@@ -507,30 +415,16 @@ mod tests {
     fn log4j_events_become_lines() {
         let mut p = Log4jParser::default();
         assert_eq!(p.feed("plain output").as_deref(), Some("plain output"));
-        assert_eq!(
-            p.feed(
-                r#"<log4j:Event logger="ave" timestamp="1" level="INFO" thread="Client thread">"#
-            ),
-            None
-        );
-        assert_eq!(
-            p.feed("  <log4j:Message><![CDATA[Setting user: Notch]]></log4j:Message>"),
-            None
-        );
-        assert_eq!(
-            p.feed("</log4j:Event>").as_deref(),
-            Some("[Client thread/INFO]: Setting user: Notch")
-        );
+        assert_eq!(p.feed(r#"<log4j:Event logger="ave" timestamp="1" level="INFO" thread="Client thread">"#), None);
+        assert_eq!(p.feed("  <log4j:Message><![CDATA[Setting user: Notch]]></log4j:Message>"), None);
+        assert_eq!(p.feed("</log4j:Event>").as_deref(), Some("[Client thread/INFO]: Setting user: Notch"));
         let one = r#"<log4j:Event logger="x" timestamp="1" level="ERROR" thread="Render thread"><log4j:Message><![CDATA[boom]]></log4j:Message><log4j:Throwable><![CDATA[java.lang.RuntimeException: boom
 	at a.b(c.java:1)]]></log4j:Throwable></log4j:Event>"#;
         // A multi-line throwable arrives across lines.
         let mut lines = one.lines();
         assert_eq!(p.feed(lines.next().unwrap()), None);
         let out = p.feed(lines.next().unwrap()).unwrap();
-        assert!(
-            out.starts_with("[Render thread/ERROR]: boom\njava.lang.RuntimeException: boom"),
-            "{out}"
-        );
+        assert!(out.starts_with("[Render thread/ERROR]: boom\njava.lang.RuntimeException: boom"), "{out}");
     }
 
     #[cfg(unix)]
@@ -538,18 +432,11 @@ mod tests {
     fn spawn_captures_output_and_detects_ready() {
         let tmp = tempfile::tempdir().unwrap();
         let script = "echo 'starting'; echo 'Setting user: Notch'; echo 'oops' 1>&2; exit 3";
-        let cmd = LaunchCommand::new(
-            "/bin/sh".into(),
-            vec!["-c".into(), script.into()],
-            tmp.path().into(),
-            String::new(),
-        );
+        let cmd =
+            LaunchCommand::new("/bin/sh".into(), vec!["-c".into(), script.into()], tmp.path().into(), String::new());
         let fired = Arc::new(AtomicBool::new(false));
         let f = fired.clone();
-        let mut game = spawn(&cmd, "Test 1", tmp.path(), move || {
-            f.store(true, Ordering::Relaxed)
-        })
-        .unwrap();
+        let mut game = spawn(&cmd, "Test 1", tmp.path(), move || f.store(true, Ordering::Relaxed)).unwrap();
         let status = game.child.wait();
         // Let the reader threads drain.
         std::thread::sleep(Duration::from_millis(200));
@@ -558,10 +445,7 @@ mod tests {
         assert_eq!(outcome.exit_code, Some(3));
         assert!(!outcome.success && !outcome.early);
         let log = std::fs::read_to_string(&outcome.log_path).unwrap();
-        assert!(
-            log.contains("Setting user: Notch") && log.contains("oops"),
-            "{log}"
-        );
+        assert!(log.contains("Setting user: Notch") && log.contains("oops"), "{log}");
         assert!(outcome.summary().contains("crashed (exit code 3)"));
     }
 
@@ -570,17 +454,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(tmp.path().join("crash-reports")).unwrap();
         let since = SystemTime::now() - Duration::from_secs(5);
-        std::fs::write(
-            tmp.path()
-                .join("crash-reports/crash-2025-01-01_00.00.00-client.txt"),
-            "x",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("crash-reports/crash-2025-01-01_00.00.00-client.txt"), "x").unwrap();
         std::fs::write(tmp.path().join("notes.txt"), "x").unwrap();
         let found = newest_crash_report(tmp.path(), since).unwrap();
         assert!(found.ends_with("crash-2025-01-01_00.00.00-client.txt"));
-        assert!(
-            newest_crash_report(tmp.path(), SystemTime::now() + Duration::from_secs(60)).is_none()
-        );
+        assert!(newest_crash_report(tmp.path(), SystemTime::now() + Duration::from_secs(60)).is_none());
     }
 }

@@ -33,19 +33,13 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     // `--smoke-test <file.png>`: open the UI, save a screenshot, exit.
-    let smoke = args.iter().position(|a| a == "--smoke-test").map(|i| {
-        PathBuf::from(
-            args.get(i + 1)
-                .map_or("rustcraft-smoke.png", String::as_str),
-        )
-    });
+    let smoke = args
+        .iter()
+        .position(|a| a == "--smoke-test")
+        .map(|i| PathBuf::from(args.get(i + 1).map_or("rustcraft-smoke.png", String::as_str)));
     // `--smoke-tab <name>` picks the screen a smoke test captures;
     // `--smoke-launch` first plays the selected instance offline.
-    let smoke_tab = args
-        .iter()
-        .position(|a| a == "--smoke-tab")
-        .and_then(|i| args.get(i + 1))
-        .cloned();
+    let smoke_tab = args.iter().position(|a| a == "--smoke-tab").and_then(|i| args.get(i + 1)).cloned();
     let mut smoke_launch = args.iter().any(|a| a == "--smoke-launch");
 
     let dirs = match DataDir::from_env() {
@@ -56,11 +50,7 @@ fn main() -> ExitCode {
         }
     };
     init_logging(&dirs);
-    tracing::info!(
-        "RustCraft {} starting, data in {}",
-        env!("CARGO_PKG_VERSION"),
-        dirs.root().display()
-    );
+    tracing::info!("RustCraft {} starting, data in {}", env!("CARGO_PKG_VERSION"), dirs.root().display());
 
     let _lock = match InstanceLock::try_acquire(&dirs.root().join("launcher.lock")) {
         Ok(Some(lock)) => Some(lock),
@@ -136,19 +126,12 @@ fn run_window(core: &Arc<Core>, smoke: Option<Smoke>) -> eframe::Result {
     let creator = |core: Arc<Core>, smoke: Option<Smoke>| -> eframe::AppCreator<'static> {
         Box::new(move |cc| Ok(Box::new(LauncherApp::new(cc, core, smoke))))
     };
-    let first = eframe::run_native(
-        "RustCraft",
-        native_options(eframe::Renderer::Wgpu),
-        creator(core.clone(), smoke.clone()),
-    );
+    let first =
+        eframe::run_native("RustCraft", native_options(eframe::Renderer::Wgpu), creator(core.clone(), smoke.clone()));
     match first {
         Err(e) if core.game.lock().unwrap().is_none() => {
             tracing::warn!("GPU renderer failed ({e}); retrying with OpenGL");
-            eframe::run_native(
-                "RustCraft",
-                native_options(eframe::Renderer::Glow),
-                creator(core.clone(), smoke),
-            )
+            eframe::run_native("RustCraft", native_options(eframe::Renderer::Glow), creator(core.clone(), smoke))
         }
         other => other,
     }
@@ -181,16 +164,11 @@ fn init_logging(dirs: &DataDir) {
     let logs = dirs.logs();
     let _ = std::fs::create_dir_all(&logs);
     let _ = std::fs::rename(logs.join("launcher.log"), logs.join("launcher.prev.log"));
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,eframe=warn,egui_wgpu=warn".into()
-    });
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_ansi(false);
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,eframe=warn,egui_wgpu=warn".into());
+    let builder = tracing_subscriber::fmt().with_env_filter(filter).with_ansi(false);
     match std::fs::File::create(logs.join("launcher.log")) {
-        Ok(file) => builder
-            .with_writer(std::io::stderr.and(Arc::new(file)))
-            .init(),
+        Ok(file) => builder.with_writer(std::io::stderr.and(Arc::new(file))).init(),
         Err(_) => builder.with_writer(std::io::stderr).init(),
     }
 }
@@ -219,9 +197,5 @@ fn icon() -> egui::IconData {
             rgba[(y * N + x) * 4..][..4].copy_from_slice(&[r, g, b, 255]);
         }
     }
-    egui::IconData {
-        rgba,
-        width: N as u32,
-        height: N as u32,
-    }
+    egui::IconData { rgba, width: N as u32, height: N as u32 }
 }
