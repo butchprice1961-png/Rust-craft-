@@ -193,6 +193,8 @@ impl Authenticator {
         let http = reqwest::Client::builder()
             .user_agent(concat!("RustCraft/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(30))
+            // The endpoints are fixed HTTPS URLs; never follow a redirect elsewhere.
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("HTTP client configuration is static");
         Self { http, config }

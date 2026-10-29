@@ -38,6 +38,16 @@ impl LocalWorld {
         let dir = saves.join(name);
         let (info, root) = if dir.join("level.dat").exists() {
             let (info, root) = anvil::read_level(&dir).with_context(|| format!("reading {}", dir.display()))?;
+            // Survival rules (damage, drops, inventory) do not exist yet, and
+            // playing such a world with creative rules would change it.
+            if info.game_type != 1 {
+                let mode = ["survival", "creative", "adventure", "spectator"].get(info.game_type as usize);
+                anyhow::bail!(
+                    "\"{name}\" is a {} world. The RustCraft engine only plays creative worlds so far; \
+                     open it with the official client.",
+                    mode.unwrap_or(&"non-creative")
+                );
+            }
             (info, Some(root))
         } else {
             std::fs::create_dir_all(&dir)?;
@@ -189,5 +199,25 @@ impl LocalWorld {
         self.last_save = Instant::now();
         tracing::info!("saved {} ({count} chunks)", self.dir.display());
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_creative_worlds_and_refuses_survival_ones() {
+        let saves = tempfile::tempdir().unwrap();
+        let world = LocalWorld::open(saves.path(), "New", Some(7)).unwrap();
+        assert_eq!((world.info.game_type, world.info.seed), (1, 7));
+
+        let mut info = world.info.clone();
+        info.game_type = 0;
+        let dir = saves.path().join("Survival");
+        std::fs::create_dir_all(&dir).unwrap();
+        anvil::write_level(&dir, &info, None).unwrap();
+        let err = LocalWorld::open(saves.path(), "Survival", None).err().unwrap();
+        assert!(err.to_string().contains("survival world"), "{err}");
     }
 }

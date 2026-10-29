@@ -6,3 +6,5 @@
 - Verified, resumable downloads of game files and Mojang's Java runtimes, with offline relaunch from cache.
 - Fabric Loader instances; Forge and NeoForge are not supported yet.
 - The launcher closes while you play and reopens when the game exits, with crash reports and logs one click away.
+- Experimental RustCraft engine for 1.8.9 instances: local worlds in creative mode, rendered natively with wgpu.
+- Not verified yet against Mojang's live services; see docs/COMPATIBILITY.md.

@@ -1,6 +1,6 @@
 [package]
 name = "rustcraft-mods"
-description = "Mod loader installation and Java mod analysis for RustCraft."
+description = "Mod loader installation (Fabric) for RustCraft."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

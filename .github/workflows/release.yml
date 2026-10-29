@@ -35,12 +35,15 @@ jobs:
           "$APPIMAGE" --version
           RUSTCRAFT_HOME=$(mktemp -d) xvfb-run -a "$APPIMAGE" --smoke-test smoke-linux.png
           test -s smoke-linux.png
+          "$APPIMAGE" --appimage-extract >/dev/null
+          xvfb-run -a squashfs-root/usr/bin/rustcraft-client --game-dir "$(mktemp -d)" --seed 1 --render-distance 4 --screenshot smoke-linux-client.png
+          test -s smoke-linux-client.png
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
             dist/*.AppImage
-            smoke-linux.png
+            smoke-linux*.png
 
   windows:
     runs-on: windows-2022
@@ -77,6 +80,8 @@ jobs:
           $env:RUSTCRAFT_HOME = "$env:RUNNER_TEMP\rc-home"
           $p = Start-Process -Wait -PassThru -FilePath "$env:RUNNER_TEMP\RustCraftInstall\rustcraft.exe" -ArgumentList "--smoke-test", "$PWD\smoke-windows.png"
           if ($p.ExitCode -ne 0 -or -not (Test-Path smoke-windows.png)) { Get-Content "$env:RUSTCRAFT_HOME\logs\launcher.log"; exit 1 }
+          $c = Start-Process -Wait -PassThru -FilePath "$env:RUNNER_TEMP\RustCraftInstall\rustcraft-client.exe" -ArgumentList "--game-dir", "$env:RUNNER_TEMP\client", "--seed", "1", "--render-distance", "4", "--screenshot", "$PWD\smoke-windows-client.png"
+          if ($c.ExitCode -ne 0 -or -not (Test-Path smoke-windows-client.png)) { Get-ChildItem "$env:RUNNER_TEMP\client\crash-reports" -ErrorAction SilentlyContinue | Get-Content; exit 1 }
           Start-Process -Wait -FilePath "$env:RUNNER_TEMP\RustCraftInstall\uninstall.exe" -ArgumentList "/S"
       - uses: actions/upload-artifact@v4
         with:
@@ -84,7 +89,7 @@ jobs:
           path: |
             dist/*.zip
             dist/*-setup.exe
-            smoke-windows.png
+            smoke-windows*.png
 
   macos:
     runs-on: macos-14
@@ -124,13 +129,15 @@ jobs:
           lipo -archs /Volumes/RustCraft/RustCraft.app/Contents/MacOS/rustcraft
           RUSTCRAFT_HOME=$(mktemp -d) /Volumes/RustCraft/RustCraft.app/Contents/MacOS/rustcraft --smoke-test "$PWD/smoke-macos.png"
           test -s smoke-macos.png
+          /Volumes/RustCraft/RustCraft.app/Contents/MacOS/rustcraft-client --game-dir "$(mktemp -d)" --seed 1 --render-distance 4 --screenshot "$PWD/smoke-macos-client.png"
+          test -s smoke-macos-client.png
           hdiutil detach /Volumes/RustCraft
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
             dist/*.dmg
-            smoke-macos.png
+            smoke-macos*.png
 
   publish:
     needs: [linux, windows, macos]

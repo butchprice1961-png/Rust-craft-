@@ -1,6 +1,6 @@
 [package]
 name = "rustcraft-core"
-description = "Shared paths, file safety helpers and configuration persistence for RustCraft."
+description = "Shared paths, file safety helpers, configuration persistence and NBT for RustCraft."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

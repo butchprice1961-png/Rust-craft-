@@ -558,44 +558,53 @@ impl LauncherApp {
                 &format!("Edit {}", draft.name),
                 &format!("Minecraft {} · {}", draft.game_version, draft.loader_label()),
             );
-            theme::section(ui, "Memory");
-            ui.add(egui::Slider::new(&mut draft.max_memory_mb, 512..=16384).step_by(256.0).text("maximum (MB)"));
-            ui.add(egui::Slider::new(&mut draft.min_memory_mb, 256..=8192).step_by(256.0).text("initial (MB)"));
-            if draft.min_memory_mb > draft.max_memory_mb {
-                draft.min_memory_mb = draft.max_memory_mb;
-            }
-            ui.add_space(4.0);
-            theme::section(ui, "Java");
-            let mut java = draft.java_path.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
-            ui.add(TextEdit::singleline(&mut java).hint_text("Automatic (recommended)").desired_width(f32::INFINITY));
-            draft.java_path = (!java.trim().is_empty()).then(|| java.trim().into());
-            ui.add(
-                TextEdit::singleline(&mut draft.jvm_args)
-                    .hint_text("Extra JVM arguments, e.g. -XX:+UseG1GC")
-                    .desired_width(f32::INFINITY),
-            );
-            ui.add_space(4.0);
-            theme::section(ui, "Game");
-            let mut custom = draft.resolution.is_some();
-            ui.checkbox(&mut custom, "Custom window size");
-            if custom {
-                let (mut w, mut h) = draft.resolution.unwrap_or((1280, 720));
-                ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut w).range(320..=7680).suffix(" px"));
-                    ui.label("×");
-                    ui.add(egui::DragValue::new(&mut h).range(240..=4320).suffix(" px"));
-                });
-                draft.resolution = Some((w, h));
+            if draft.engine == Engine::Native {
+                ui.label(muted(
+                    "The RustCraft engine runs without Java, so memory, Java and server options do not apply. \
+                     Game options are in its pause menu (Esc).",
+                ));
             } else {
-                draft.resolution = None;
+                theme::section(ui, "Memory");
+                ui.add(egui::Slider::new(&mut draft.max_memory_mb, 512..=16384).step_by(256.0).text("maximum (MB)"));
+                ui.add(egui::Slider::new(&mut draft.min_memory_mb, 256..=8192).step_by(256.0).text("initial (MB)"));
+                if draft.min_memory_mb > draft.max_memory_mb {
+                    draft.min_memory_mb = draft.max_memory_mb;
+                }
+                ui.add_space(4.0);
+                theme::section(ui, "Java");
+                let mut java = draft.java_path.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
+                ui.add(
+                    TextEdit::singleline(&mut java).hint_text("Automatic (recommended)").desired_width(f32::INFINITY),
+                );
+                draft.java_path = (!java.trim().is_empty()).then(|| java.trim().into());
+                ui.add(
+                    TextEdit::singleline(&mut draft.jvm_args)
+                        .hint_text("Extra JVM arguments, e.g. -XX:+UseG1GC")
+                        .desired_width(f32::INFINITY),
+                );
+                ui.add_space(4.0);
+                theme::section(ui, "Game");
+                let mut custom = draft.resolution.is_some();
+                ui.checkbox(&mut custom, "Custom window size");
+                if custom {
+                    let (mut w, mut h) = draft.resolution.unwrap_or((1280, 720));
+                    ui.horizontal(|ui| {
+                        ui.add(egui::DragValue::new(&mut w).range(320..=7680).suffix(" px"));
+                        ui.label("×");
+                        ui.add(egui::DragValue::new(&mut h).range(240..=4320).suffix(" px"));
+                    });
+                    draft.resolution = Some((w, h));
+                } else {
+                    draft.resolution = None;
+                }
+                let mut server = draft.server.clone().unwrap_or_default();
+                ui.add(
+                    TextEdit::singleline(&mut server)
+                        .hint_text("Join server on launch (host:port), optional")
+                        .desired_width(f32::INFINITY),
+                );
+                draft.server = (!server.trim().is_empty()).then(|| server.trim().to_string());
             }
-            let mut server = draft.server.clone().unwrap_or_default();
-            ui.add(
-                TextEdit::singleline(&mut server)
-                    .hint_text("Join server on launch (host:port), optional")
-                    .desired_width(f32::INFINITY),
-            );
-            draft.server = (!server.trim().is_empty()).then(|| server.trim().to_string());
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui.add(theme::primary("Save")).clicked() {
@@ -969,8 +978,10 @@ impl LauncherApp {
 }
 
 const COMPATIBILITY: &[(&str, &str, &str, Color32)] = &[
-    ("Official client (JVM)", "1.8 – latest release/snapshot", "Implemented", SUCCESS),
-    ("Fabric mods (JVM)", "Versions Fabric supports", "Implemented", SUCCESS),
+    // "Unverified": implemented and tested against recorded metadata, but
+    // not yet against Mojang's live servers. See docs/COMPATIBILITY.md.
+    ("Official client (JVM)", "1.8 – latest release/snapshot", "Unverified", WARNING),
+    ("Fabric mods (JVM)", "Versions Fabric supports", "Unverified", WARNING),
     ("Forge / NeoForge mods", "—", "Not supported", DANGER),
     ("RustCraft engine", "1.8.9 local worlds (creative)", "Experimental", WARNING),
     ("RustCraft engine multiplayer", "—", "Not yet available", WARNING),

@@ -35,6 +35,8 @@ pub struct App {
 
 struct Benchmark {
     until: Option<Instant>,
+    /// Ticks flown so far; the route depends on time, never on frame rate.
+    ticks: u32,
     frames: Vec<f64>,
     origin: DVec3,
     loaded_after: Duration,
@@ -159,6 +161,7 @@ impl App {
             Game::new(local, self.textures.lookup.clone(), self.textures.biome_colors(), self.settings.render_distance);
         let benchmark = self.spec.benchmark_seconds.map(|_| Benchmark {
             until: None,
+            ticks: 0,
             frames: Vec::new(),
             origin: DVec3::ZERO,
             loaded_after: Duration::ZERO,
@@ -329,14 +332,14 @@ impl Running {
         self.hud.record_frame(dt);
         self.accumulator += dt.as_secs_f64().min(0.25);
         while self.accumulator >= TICK {
-            if let Some(b) = &self.benchmark
+            if let Some(b) = &mut self.benchmark
                 && b.until.is_some()
             {
-                // Fly a straight, repeatable route east.
+                // Fly a straight, repeatable route east at 2 blocks per second.
+                b.ticks += 1;
                 let p = &mut self.game.player;
-                let t = b.frames.len() as f64;
                 p.prev_pos = p.pos;
-                p.pos = b.origin + DVec3::new(t * 0.1, 0.0, 0.0);
+                p.pos = b.origin + DVec3::new(b.ticks as f64 * 0.1, 0.0, 0.0);
                 p.yaw = -90.0;
                 p.pitch = 20.0;
             } else {

@@ -297,12 +297,22 @@ pub struct LaunchOptions {
     pub server: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct LaunchCommand {
     pub program: PathBuf,
     pub args: Vec<String>,
     pub cwd: PathBuf,
     secret: String,
+}
+
+impl std::fmt::Debug for LaunchCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LaunchCommand")
+            .field("program", &self.program)
+            .field("args", &self.redacted_args())
+            .field("cwd", &self.cwd)
+            .finish_non_exhaustive()
+    }
 }
 
 impl LaunchCommand {
@@ -320,10 +330,12 @@ impl LaunchCommand {
 
     /// Arguments safe to log or show.
     pub fn redacted_args(&self) -> Vec<String> {
-        self.args
-            .iter()
-            .map(|a| if self.secret.is_empty() { a.clone() } else { a.replace(&self.secret, "<redacted>") })
-            .collect()
+        self.args.iter().map(|a| self.redact(a)).collect()
+    }
+
+    /// `text` with the secret replaced, e.g. a line of game output.
+    pub fn redact(&self, text: &str) -> String {
+        if self.secret.is_empty() { text.into() } else { text.replace(&self.secret, "<redacted>") }
     }
 }
 
@@ -561,6 +573,8 @@ mod tests {
         assert!(cmd.args.iter().any(|a| a == "SECRET-TOKEN"));
         assert!(!cmd.redacted_args().iter().any(|a| a.contains("SECRET-TOKEN")));
         assert!(!format!("{:?}", opts(None).auth).contains("SECRET"));
+        assert!(!format!("{cmd:?}").contains("SECRET-TOKEN"));
+        assert_eq!(cmd.redact("(Session ID is token:SECRET-TOKEN:abc)"), "(Session ID is token:<redacted>:abc)");
     }
 
     #[test]

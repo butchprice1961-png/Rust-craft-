@@ -81,7 +81,7 @@ fn main() -> ExitCode {
     let event_loop = match winit::event_loop::EventLoop::new() {
         Ok(el) => el,
         Err(e) => {
-            eprintln!("RustCraft could not connect to the display: {e}");
+            eprintln!("RustCraft stopped: could not connect to the display ({e}).");
             return ExitCode::FAILURE;
         }
     };

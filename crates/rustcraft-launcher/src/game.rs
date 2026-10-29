@@ -97,6 +97,11 @@ async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, Launch
     if inst.game_version != NATIVE_VERSION {
         return Err(fail(format!("The RustCraft engine only supports {NATIVE_VERSION}.")));
     }
+    if inst.server.as_deref().is_some_and(|s| !s.trim().is_empty()) {
+        return Err(fail(
+            "The RustCraft engine cannot join servers yet. Remove the server line from this instance's instance.toml.",
+        ));
+    }
     let exe_name = if cfg!(windows) { "rustcraft-client.exe" } else { "rustcraft-client" };
     let exe = std::env::current_exe()?.with_file_name(exe_name);
     if !exe.exists() {
@@ -278,6 +283,9 @@ pub struct RunningGame {
     pub started: SystemTime,
     pub started_at: Instant,
     pub ready: Arc<AtomicBool>,
+    /// What the native client said when it gave up, if anything.
+    reason: Arc<Mutex<Option<String>>>,
+    pumps_done: std::sync::mpsc::Receiver<()>,
 }
 
 #[derive(Debug, Clone)]
@@ -290,10 +298,19 @@ pub struct GameOutcome {
     pub log_path: PathBuf,
     pub crash_report: Option<PathBuf>,
     pub played: Duration,
+    pub reason: Option<String>,
 }
 
 impl GameOutcome {
     pub fn summary(&self) -> String {
+        let summary = self.status();
+        match &self.reason {
+            Some(reason) if !self.success => format!("{summary} {reason}"),
+            _ => summary,
+        }
+    }
+
+    fn status(&self) -> String {
         match (self.success, self.exit_code) {
             (true, _) => format!("{} closed normally after {}.", self.instance, format_duration(self.played)),
             (false, Some(code)) if self.early => {
@@ -359,13 +376,19 @@ pub fn spawn(
         });
     }
     let ready = Arc::new(AtomicBool::new(false));
+    let reason = Arc::new(Mutex::new(None));
+    let (done, pumps_done) = std::sync::mpsc::channel();
     let streams: [Option<Box<dyn Read + Send>>; 2] = [
         child.stdout.take().map(|s| Box::new(s) as Box<dyn Read + Send>),
         child.stderr.take().map(|s| Box::new(s) as Box<dyn Read + Send>),
     ];
     for stream in streams.into_iter().flatten() {
-        let (log, ready, on_ready) = (log.clone(), ready.clone(), on_ready.clone());
-        std::thread::Builder::new().name("game-log".into()).spawn(move || pump(stream, &log, &ready, &on_ready))?;
+        let (cmd, log, ready, reason, on_ready, done) =
+            (cmd.clone(), log.clone(), ready.clone(), reason.clone(), on_ready.clone(), done.clone());
+        std::thread::Builder::new().name("game-log".into()).spawn(move || {
+            pump(stream, &cmd, &log, &ready, &reason, &on_ready);
+            let _ = done.send(());
+        })?;
     }
     Ok(RunningGame {
         child,
@@ -375,10 +398,22 @@ pub fn spawn(
         started: SystemTime::now(),
         started_at: Instant::now(),
         ready,
+        reason,
+        pumps_done,
     })
 }
 
-fn pump(stream: impl Read, log: &Mutex<impl Write>, ready: &AtomicBool, on_ready: &dyn Fn()) {
+/// How the native client prefixes the reason it stopped (`rustcraft-client`'s main).
+const STOPPED_PREFIX: &str = "RustCraft stopped: ";
+
+fn pump(
+    stream: impl Read,
+    cmd: &LaunchCommand,
+    log: &Mutex<impl Write>,
+    ready: &AtomicBool,
+    reason: &Mutex<Option<String>>,
+    on_ready: &dyn Fn(),
+) {
     let mut reader = BufReader::new(stream);
     let mut parser = Log4jParser::default();
     let mut raw = Vec::new();
@@ -392,9 +427,14 @@ fn pump(stream: impl Read, log: &Mutex<impl Write>, ready: &AtomicBool, on_ready
         let Some(text) = parser.feed(line.trim_end_matches(['\r', '\n'])) else {
             continue;
         };
+        // Some versions print the session token; keep it out of the log.
+        let text = cmd.redact(&text);
         if !ready.load(Ordering::Relaxed) && READY_MARKERS.iter().any(|m| text.contains(m)) {
             ready.store(true, Ordering::Relaxed);
             on_ready();
+        }
+        if let Some(r) = text.strip_prefix(STOPPED_PREFIX) {
+            *reason.lock().unwrap() = Some(r.to_string());
         }
         let _ = writeln!(log.lock().unwrap(), "{text}");
     }
@@ -402,6 +442,11 @@ fn pump(stream: impl Read, log: &Mutex<impl Write>, ready: &AtomicBool, on_ready
 
 impl RunningGame {
     pub fn outcome(&self, status: io::Result<ExitStatus>) -> GameOutcome {
+        // Let the log threads take in the last lines the process wrote. A
+        // child the game left running may keep its pipes open; don't wait on it.
+        for _ in 0..2 {
+            let _ = self.pumps_done.recv_timeout(Duration::from_secs(1));
+        }
         let exit_code = status.as_ref().ok().and_then(|s| s.code());
         let success = status.as_ref().is_ok_and(|s| s.success());
         GameOutcome {
@@ -412,6 +457,7 @@ impl RunningGame {
             log_path: self.log_path.clone(),
             crash_report: if success { None } else { newest_crash_report(&self.game_dir, self.started) },
             played: self.started_at.elapsed(),
+            reason: self.reason.lock().unwrap().clone(),
         }
     }
 }
@@ -503,22 +549,22 @@ mod tests {
     #[test]
     fn spawn_captures_output_and_detects_ready() {
         let tmp = tempfile::tempdir().unwrap();
-        let script = "echo 'starting'; echo 'Setting user: Notch'; echo 'oops' 1>&2; exit 3";
+        let script = "echo 'starting'; echo 'Setting user: Notch'; echo '(Session ID is token:T0K3N:1)'; \
+                      echo 'oops' 1>&2; echo 'RustCraft stopped: out of luck' 1>&2; exit 3";
         let cmd =
-            LaunchCommand::new("/bin/sh".into(), vec!["-c".into(), script.into()], tmp.path().into(), String::new());
+            LaunchCommand::new("/bin/sh".into(), vec!["-c".into(), script.into()], tmp.path().into(), "T0K3N".into());
         let fired = Arc::new(AtomicBool::new(false));
         let f = fired.clone();
         let mut game = spawn(&cmd, None, "Test 1", tmp.path(), move || f.store(true, Ordering::Relaxed)).unwrap();
         let status = game.child.wait();
-        // Let the reader threads drain.
-        std::thread::sleep(Duration::from_millis(200));
         let outcome = game.outcome(status);
         assert!(fired.load(Ordering::Relaxed));
         assert_eq!(outcome.exit_code, Some(3));
         assert!(!outcome.success && !outcome.early);
         let log = std::fs::read_to_string(&outcome.log_path).unwrap();
         assert!(log.contains("Setting user: Notch") && log.contains("oops"), "{log}");
-        assert!(outcome.summary().contains("crashed (exit code 3)"));
+        assert!(log.contains("token:<redacted>:1") && !log.contains("T0K3N"), "{log}");
+        assert_eq!(outcome.summary(), "Test 1 crashed (exit code 3). out of luck");
     }
 
     #[test]
