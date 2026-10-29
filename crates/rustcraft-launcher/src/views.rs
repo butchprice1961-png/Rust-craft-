@@ -12,7 +12,7 @@ use eframe::egui::{
 use rustcraft_assets::VersionKind;
 
 use crate::app::{AccountChange, LauncherApp, Level, Loaders, NewInstance, PlayState, SignIn, Tab};
-use crate::config::{Graphics, Instance, Loader, delete_instance, validate_name};
+use crate::config::{Engine, Graphics, Instance, Loader, NATIVE_VERSION, delete_instance, validate_name};
 use crate::game::format_ago;
 use crate::theme::{self, ACCENT, BORDER, CARD, CARD_RAISED, DANGER, MUTED, SUCCESS, TEXT, WARNING, muted};
 
@@ -106,7 +106,8 @@ impl LauncherApp {
     fn view_play(&mut self, ui: &mut Ui) {
         theme::title(ui, "Play", "");
 
-        if self.accounts.active().is_none() {
+        let native = self.selected_instance().is_some_and(|i| i.engine == Engine::Native);
+        if self.accounts.active().is_none() && !native {
             let text = if self.core.auth.is_some() {
                 "Sign in with a Microsoft account that owns Minecraft: Java Edition to play."
             } else {
@@ -193,7 +194,8 @@ impl LauncherApp {
     fn play_controls(&mut self, ui: &mut Ui) {
         match &self.play {
             PlayState::Idle => {
-                let can_play = self.accounts.active().is_some();
+                let native = self.selected_instance().is_some_and(|i| i.engine == Engine::Native);
+                let can_play = native || self.accounts.active().is_some();
                 let button = ui.add_enabled(can_play, theme::primary("Play"));
                 if button.clicked() {
                     self.start_launch(false);
@@ -331,6 +333,7 @@ impl LauncherApp {
         self.new_instance = Some(NewInstance {
             name: String::new(),
             version,
+            native: false,
             filter: String::new(),
             snapshots,
             fabric: false,
@@ -425,12 +428,30 @@ impl LauncherApp {
             }
             ui.add_space(6.0);
 
-            ui.label(muted("Mod loader"));
-            ui.horizontal(|ui| {
-                ui.radio_value(&mut draft.fabric, false, "None (vanilla)");
-                ui.radio_value(&mut draft.fabric, true, "Fabric");
-            });
+            if draft.version.as_deref() == Some(NATIVE_VERSION) {
+                ui.label(muted("Engine"));
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut draft.native, false, "Official Java client");
+                    ui.radio_value(&mut draft.native, true, "RustCraft engine (experimental)");
+                });
+                if draft.native {
+                    ui.label(
+                        muted("Local creative worlds only; no multiplayer or mods yet. Works without signing in, using built-in textures unless the official game files are installed.")
+                            .size(12.0),
+                    );
+                }
+            } else {
+                draft.native = false;
+            }
+            if !draft.native {
+                ui.label(muted("Mod loader"));
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut draft.fabric, false, "None (vanilla)");
+                    ui.radio_value(&mut draft.fabric, true, "Fabric");
+                });
+            }
             if draft.fabric
+                && !draft.native
                 && let Some(version) = draft.version.clone()
             {
                 match &draft.loaders {
@@ -511,12 +532,15 @@ impl LauncherApp {
     fn create_instance(&self, draft: &NewInstance) -> Result<String, String> {
         validate_name(&draft.name)?;
         let version = draft.version.clone().ok_or("Choose a version.")?;
-        let loader = if draft.fabric {
+        let loader = if draft.fabric && !draft.native {
             Loader::Fabric { version: draft.loader_choice.clone().ok_or("Choose a Fabric Loader version.")? }
         } else {
             Loader::Vanilla
         };
-        let inst = Instance::new(&draft.name, &version, loader);
+        let mut inst = Instance::new(&draft.name, &version, loader);
+        if draft.native {
+            inst.engine = Engine::Native;
+        }
         inst.create(&self.core.dirs, draft.view_distance, draft.graphics).map_err(|e| e.to_string())?;
         Ok(inst.name)
     }
@@ -948,7 +972,8 @@ const COMPATIBILITY: &[(&str, &str, &str, Color32)] = &[
     ("Official client (JVM)", "1.8 – latest release/snapshot", "Implemented", SUCCESS),
     ("Fabric mods (JVM)", "Versions Fabric supports", "Implemented", SUCCESS),
     ("Forge / NeoForge mods", "—", "Not supported", DANGER),
-    ("RustCraft native engine", "—", "Not yet available", WARNING),
+    ("RustCraft engine", "1.8.9 local worlds (creative)", "Experimental", WARNING),
+    ("RustCraft engine multiplayer", "—", "Not yet available", WARNING),
 ];
 
 fn modal(ctx: &egui::Context, id: &str, add: impl FnOnce(&mut Ui)) {

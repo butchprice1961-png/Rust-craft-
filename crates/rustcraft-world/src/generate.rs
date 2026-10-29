@@ -320,9 +320,8 @@ impl Generator {
             };
             tree(c, rng, x, col.height + 1, z, kind);
         }
-        for i in 0..256 {
+        for (i, col) in columns.iter().enumerate() {
             let (x, z) = (i % 16, i / 16);
-            let col = &columns[i];
             let y = col.height + 1;
             if !c.block(x, y, z).is_air() {
                 continue;

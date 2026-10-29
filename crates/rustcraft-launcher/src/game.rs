@@ -15,7 +15,7 @@ use rustcraft_auth::AuthError;
 use rustcraft_core::fs::unix_time;
 use rustcraft_platform::{discover_java, pick_java, probe_java};
 
-use crate::config::{Instance, Loader};
+use crate::config::{Engine, Instance, Loader, NATIVE_VERSION};
 use crate::core::Core;
 
 /// Lines that show the game has created its window and is running.
@@ -66,9 +66,70 @@ fn fail(message: impl Into<String>) -> LaunchError {
     LaunchError { message: message.into(), offline_possible: false }
 }
 
+/// A command ready to start, with data for its standard input.
+pub struct Prepared {
+    pub command: LaunchCommand,
+    pub stdin: Option<Vec<u8>>,
+}
+
 /// Everything up to (not including) starting the process: account, loader,
 /// files, Java, command line.
 pub async fn prepare(
+    core: &Core,
+    inst: &Instance,
+    manifest: Option<Arc<rustcraft_assets::VersionManifest>>,
+    offline: bool,
+    progress: &Arc<Progress>,
+    cancel: &CancellationToken,
+    stage: &(dyn Fn(Stage) + Send + Sync),
+) -> Result<Prepared, LaunchError> {
+    if inst.engine == Engine::Native {
+        return prepare_native(core, inst).await;
+    }
+    let command = prepare_java(core, inst, manifest, offline, progress, cancel, stage).await?;
+    Ok(Prepared { command, stdin: None })
+}
+
+/// The native engine needs no download: it uses the instance's resource
+/// packs and, if a signed-in launch already downloaded it, the official
+/// 1.8.9 client jar's textures; otherwise its own built-in art.
+async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, LaunchError> {
+    if inst.game_version != NATIVE_VERSION {
+        return Err(fail(format!("The RustCraft engine only supports {NATIVE_VERSION}.")));
+    }
+    let exe_name = if cfg!(windows) { "rustcraft-client.exe" } else { "rustcraft-client" };
+    let exe = std::env::current_exe()?.with_file_name(exe_name);
+    if !exe.exists() {
+        return Err(fail(format!("The RustCraft engine ({exe_name}) is missing from this installation.")));
+    }
+    let game_dir = inst.dir(&core.dirs)?;
+    let mut packs: Vec<PathBuf> = std::fs::read_dir(game_dir.join("resourcepacks"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir() || p.extension().is_some_and(|x| x == "zip"))
+        .collect();
+    packs.sort();
+    let jar = core.dirs.version_dir(NATIVE_VERSION)?.join(format!("{NATIVE_VERSION}.jar"));
+    if jar.exists() {
+        packs.push(jar);
+    }
+    let account = core.accounts.lock().await.active().cloned();
+    let spec = serde_json::json!({
+        "game_dir": game_dir,
+        "resource_packs": packs,
+        "world": "World",
+        "player_name": account.as_ref().map_or("Player", |a| a.name.as_str()),
+        "player_uuid": account.as_ref().map_or("", |a| a.id.as_str()),
+    });
+    Ok(Prepared {
+        command: LaunchCommand::new(exe, vec!["--spec-stdin".into()], game_dir, String::new()),
+        stdin: Some(spec.to_string().into_bytes()),
+    })
+}
+
+async fn prepare_java(
     core: &Core,
     inst: &Instance,
     manifest: Option<Arc<rustcraft_assets::VersionManifest>>,
@@ -266,6 +327,7 @@ pub fn format_duration(d: Duration) -> String {
 /// Starts the game with its output captured to a log file in `logs_dir`.
 pub fn spawn(
     cmd: &LaunchCommand,
+    stdin: Option<Vec<u8>>,
     instance: &str,
     logs_dir: &Path,
     on_ready: impl Fn() + Send + Sync + Clone + 'static,
@@ -278,7 +340,10 @@ pub fn spawn(
     let log = Arc::new(Mutex::new(log));
 
     let mut command = cmd.to_command();
-    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command
+        .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -286,6 +351,13 @@ pub fn spawn(
         command.creation_flags(CREATE_NO_WINDOW);
     }
     let mut child = command.spawn()?;
+    if let (Some(data), Some(mut pipe)) = (stdin, child.stdin.take()) {
+        // Launch data (which may hold a session token) goes over a pipe,
+        // never the command line.
+        std::thread::spawn(move || {
+            let _ = pipe.write_all(&data);
+        });
+    }
     let ready = Arc::new(AtomicBool::new(false));
     let streams: [Option<Box<dyn Read + Send>>; 2] = [
         child.stdout.take().map(|s| Box::new(s) as Box<dyn Read + Send>),
@@ -436,7 +508,7 @@ mod tests {
             LaunchCommand::new("/bin/sh".into(), vec!["-c".into(), script.into()], tmp.path().into(), String::new());
         let fired = Arc::new(AtomicBool::new(false));
         let f = fired.clone();
-        let mut game = spawn(&cmd, "Test 1", tmp.path(), move || f.store(true, Ordering::Relaxed)).unwrap();
+        let mut game = spawn(&cmd, None, "Test 1", tmp.path(), move || f.store(true, Ordering::Relaxed)).unwrap();
         let status = game.child.wait();
         // Let the reader threads drain.
         std::thread::sleep(Duration::from_millis(200));

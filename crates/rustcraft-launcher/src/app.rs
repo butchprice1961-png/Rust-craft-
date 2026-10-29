@@ -98,6 +98,8 @@ pub enum Loaders {
 pub struct NewInstance {
     pub name: String,
     pub version: Option<String>,
+    /// Use RustCraft's own engine (1.8.9 only).
+    pub native: bool,
     pub filter: String,
     pub snapshots: bool,
     pub fabric: bool,
@@ -278,13 +280,13 @@ impl LauncherApp {
             if cancel.is_cancelled() {
                 return Event::LaunchCancelled;
             }
-            let cmd = match prepared {
-                Ok(cmd) => cmd,
+            let prepared = match prepared {
+                Ok(p) => p,
                 Err(e) => return Event::LaunchFailed(e),
             };
-            tracing::info!("launching {}: {:?}", inst.name, cmd.redacted_args());
+            tracing::info!("launching {}: {:?}", inst.name, prepared.command.redacted_args());
             let on_ready = move || ctx.request_repaint();
-            match game::spawn(&cmd, &inst.name, &core.dirs.logs(), on_ready) {
+            match game::spawn(&prepared.command, prepared.stdin, &inst.name, &core.dirs.logs(), on_ready) {
                 Ok(running) => {
                     *core.game.lock().unwrap() = Some(running);
                     let mut played = inst.clone();

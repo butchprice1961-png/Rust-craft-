@@ -45,12 +45,28 @@ pub enum Graphics {
     Fancy,
 }
 
+/// What runs the game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Engine {
+    /// The official Java Edition client in a Java VM.
+    #[default]
+    Java,
+    /// RustCraft's own engine (1.8.9 local worlds).
+    Native,
+}
+
+/// The only version the native engine implements.
+pub const NATIVE_VERSION: &str = "1.8.9";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Instance {
     #[serde(skip)]
     pub name: String,
     pub game_version: String,
     pub loader: Loader,
+    #[serde(default)]
+    pub engine: Engine,
     pub min_memory_mb: u32,
     pub max_memory_mb: u32,
     #[serde(default)]
@@ -73,6 +89,7 @@ impl Instance {
             name: name.into(),
             game_version: game_version.into(),
             loader,
+            engine: Engine::Java,
             min_memory_mb: 512,
             max_memory_mb: 2048,
             jvm_args: String::new(),
@@ -89,6 +106,9 @@ impl Instance {
     }
 
     pub fn loader_label(&self) -> String {
+        if self.engine == Engine::Native {
+            return "RustCraft engine".into();
+        }
         match &self.loader {
             Loader::Vanilla => "Vanilla".into(),
             Loader::Fabric { version } => format!("Fabric {version}"),

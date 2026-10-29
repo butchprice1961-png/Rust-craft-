@@ -1,0 +1,32 @@
+[package]
+name = "rustcraft-client"
+description = "RustCraft's native game client for Minecraft: Java Edition 1.8.9."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rustcraft-client"
+path = "src/main.rs"
+
+[dependencies]
+rustcraft-core.workspace = true
+rustcraft-renderer.workspace = true
+rustcraft-world.workspace = true
+anyhow.workspace = true
+egui = { version = "0.37.0", features = ["default_fonts"] }
+egui-wgpu = { version = "0.37.0", default-features = false, features = ["winit"] }
+egui-winit = { version = "0.37.0", default-features = false, features = ["clipboard", "links", "wayland", "x11"] }
+glam.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+pollster = "1.0"
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wgpu = "30.0.1"
+winit = "0.30.13"
+
+[dev-dependencies]
+tempfile.workspace = true

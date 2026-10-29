@@ -43,6 +43,27 @@ impl Bounds {
         Bounds { min: self.min + d, max: self.max + d }
     }
 
+    /// How far `mover` can travel by `offset` along `axis` before touching
+    /// this box (the vanilla `calculate{X,Y,Z}Offset`).
+    pub fn clip(&self, mover: &Bounds, axis: usize, offset: f64) -> f64 {
+        let (a, b) = match axis {
+            0 => (1, 2),
+            1 => (0, 2),
+            _ => (0, 1),
+        };
+        let overlaps = |i: usize| mover.max[i] > self.min[i] && mover.min[i] < self.max[i];
+        if !overlaps(a) || !overlaps(b) {
+            return offset;
+        }
+        if offset > 0.0 && mover.max[axis] <= self.min[axis] {
+            offset.min(self.min[axis] - mover.max[axis])
+        } else if offset < 0.0 && mover.min[axis] >= self.max[axis] {
+            offset.max(self.max[axis] - mover.min[axis])
+        } else {
+            offset
+        }
+    }
+
     /// Ray entry distance and face, if the ray hits this box.
     fn ray(&self, from: DVec3, inv: DVec3) -> Option<(f64, Face)> {
         let t1 = (self.min - from) * inv;

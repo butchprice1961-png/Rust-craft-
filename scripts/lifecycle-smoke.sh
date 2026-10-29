@@ -4,6 +4,7 @@
 # running, waits for it to exit, then reopens and screenshots the result.
 #
 # Usage: scripts/lifecycle-smoke.sh <rustcraft binary> <output dir>
+# With rustcraft-client next to the binary, also checks the native engine.
 # Needs a display (on headless Linux: xvfb-run -a scripts/lifecycle-smoke.sh ...).
 # Uses no network: every file it needs is created locally and verified by hash.
 set -eu
@@ -77,4 +78,37 @@ grep -q "window closed; supervising Lifecycle" "$LOG" || fail "supervisor did no
 grep -q "Lifecycle closed normally" "$LOG" || fail "game exit not recorded"
 [ -s "$OUT/lifecycle.png" ] || fail "window did not reopen and render"
 grep -q "Setting user: Tester" "$HOME_DIR"/logs/Lifecycle-*.log || fail "game output not captured"
-echo "lifecycle smoke test passed"
+echo "lifecycle smoke test passed (Java edition path)"
+
+# Same lifecycle with the native engine: the real rustcraft-client next to
+# the launcher gets its launch spec on stdin and reports RUSTCRAFT_READY.
+# It plays until stopped, so stop it the way an OS shutdown would.
+CLIENT="$(dirname "$BIN")/rustcraft-client"
+[ -x "$CLIENT" ] || { echo "no $CLIENT; skipping the native engine check"; exit 0; }
+mkdir -p "$HOME_DIR/instances/Native"
+cat > "$HOME_DIR/instances/Native/instance.toml" <<TOML
+game_version = "1.8.9"
+engine = "native"
+min_memory_mb = 256
+max_memory_mb = 512
+created = 0
+[loader]
+kind = "vanilla"
+TOML
+echo 'selected_instance = "Native"' > "$HOME_DIR/config.toml"
+RUSTCRAFT_HOME="$HOME_DIR" "$BIN" --smoke-test "$OUT/native.png" --smoke-launch &
+LAUNCHER=$!
+for _ in $(seq 120); do
+  grep -q "window closed; supervising Native" "$LOG" 2>/dev/null && break
+  sleep 1
+done
+sleep 2
+pkill -TERM -f "rustcraft-client --spec-stdin" || true
+wait "$LAUNCHER" || fail "launcher exited with an error"
+cp "$LOG" "$OUT/native-launcher.log"
+cp "$HOME_DIR"/logs/Native-*.log "$OUT/" 2>/dev/null || true
+grep -q "window closed; supervising Native" "$LOG" || fail "native client did not report ready"
+grep -q "RUSTCRAFT_READY" "$HOME_DIR"/logs/Native-*.log || fail "native client output not captured"
+grep -q "Native was terminated" "$LOG" || fail "native client exit not recorded"
+[ -s "$OUT/native.png" ] || fail "window did not reopen after the native client"
+echo "lifecycle smoke test passed (native engine path)"

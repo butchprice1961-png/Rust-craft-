@@ -28,16 +28,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --locked
 
-  # Real window, real process lifecycle: launch a stand-in game, check the
-  # launcher closes, supervises and reopens. Runs on a virtual display.
+  # Real window, real process lifecycle: launch a stand-in Java game and the
+  # native client, check the launcher closes, supervises and reopens. Runs on
+  # a virtual display with Mesa's software renderers.
   lifecycle:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri libxkbcommon-x11-0
-      - run: cargo build --locked -p rustcraft-launcher
+      - run: cargo build --locked -p rustcraft-launcher -p rustcraft-client
       - run: xvfb-run -a scripts/lifecycle-smoke.sh target/debug/rustcraft lifecycle-out
+      - name: Native client renders a new world
+        run: |
+          xvfb-run -a target/debug/rustcraft-client --game-dir "$RUNNER_TEMP/client" --seed 1 --render-distance 4 --screenshot lifecycle-out/client.png
+          test -s lifecycle-out/client.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:

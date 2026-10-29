@@ -149,8 +149,13 @@ mod tests {
         assert!(pick_java(&[j(17, true)], 8).is_none());
     }
 
+    // A child spawned by another test holds a copy of every open file until
+    // it execs, which keeps the lock alive past `drop`; keep them apart.
+    static SPAWNING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn second_lock_is_refused_until_release() {
+        let _guard = SPAWNING.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("launcher.lock");
         let first = InstanceLock::try_acquire(&path).unwrap();
@@ -162,6 +167,7 @@ mod tests {
 
     #[test]
     fn finds_system_java_here() {
+        let _guard = SPAWNING.lock().unwrap_or_else(|e| e.into_inner());
         // The dev container and CI images ship a JDK; elsewhere this only
         // checks that discovery does not panic.
         for java in discover_java() {
