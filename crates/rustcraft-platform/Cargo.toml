@@ -1,0 +1,14 @@
+[package]
+name = "rustcraft-platform"
+description = "OS integration for RustCraft: single-instance lock, Java discovery, opening folders."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+open.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

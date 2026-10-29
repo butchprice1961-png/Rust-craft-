@@ -114,6 +114,12 @@ impl Installer {
         }
     }
 
+    /// The last downloaded manifest, without touching the network.
+    pub fn cached_manifest(&self) -> Option<VersionManifest> {
+        let bytes = std::fs::read(self.dirs.cache().join("version_manifest_v2.json")).ok()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
     /// Fresh manifest when online, last cached copy otherwise.
     pub async fn manifest(&self) -> Result<VersionManifest, AssetsError> {
         let cache = self.dirs.cache().join("version_manifest_v2.json");
@@ -345,6 +351,17 @@ pub struct LaunchCommand {
 }
 
 impl LaunchCommand {
+    /// A command built outside [`build_command`]; `secret` (if non-empty)
+    /// is redacted from [`Self::redacted_args`].
+    pub fn new(program: PathBuf, args: Vec<String>, cwd: PathBuf, secret: String) -> Self {
+        Self {
+            program,
+            args,
+            cwd,
+            secret,
+        }
+    }
+
     pub fn to_command(&self) -> std::process::Command {
         let mut cmd = std::process::Command::new(&self.program);
         cmd.args(&self.args).current_dir(&self.cwd);

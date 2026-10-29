@@ -1,0 +1,32 @@
+[package]
+name = "rustcraft-launcher"
+description = "RustCraft launcher: accounts, instances, downloads and the game process supervisor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rustcraft"
+path = "src/main.rs"
+
+[dependencies]
+rustcraft-core.workspace = true
+rustcraft-assets.workspace = true
+rustcraft-auth.workspace = true
+rustcraft-mods.workspace = true
+rustcraft-platform.workspace = true
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "links", "wayland", "x11", "wgpu", "glow"] }
+winit = "0.30.13"
+open.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+reqwest.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile.workspace = true
