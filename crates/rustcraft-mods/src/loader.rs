@@ -30,19 +30,9 @@ fn segment(s: &str) -> String {
 }
 
 /// Loader versions that support `game`, newest first.
-pub async fn fabric_loaders(
-    http: &reqwest::Client,
-    meta: &str,
-    game: &str,
-) -> Result<Vec<FabricLoader>, ModsError> {
+pub async fn fabric_loaders(http: &reqwest::Client, meta: &str, game: &str) -> Result<Vec<FabricLoader>, ModsError> {
     let url = format!("{meta}/versions/loader/{}", segment(game));
-    let entries: Vec<LoaderEntry> = http
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let entries: Vec<LoaderEntry> = http.get(url).send().await?.error_for_status()?.json().await?;
     Ok(entries.into_iter().map(|e| e.loader).collect())
 }
 
@@ -55,20 +45,10 @@ pub async fn install_fabric(
     game: &str,
     loader: &str,
 ) -> Result<String, ModsError> {
-    let url = format!(
-        "{meta}/versions/loader/{}/{}/profile/json",
-        segment(game),
-        segment(loader)
-    );
-    let bytes = http
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
-    let profile: VersionJson = serde_json::from_slice(&bytes)
-        .map_err(|e| ModsError::Invalid(format!("bad Fabric profile: {e}")))?;
+    let url = format!("{meta}/versions/loader/{}/{}/profile/json", segment(game), segment(loader));
+    let bytes = http.get(url).send().await?.error_for_status()?.bytes().await?;
+    let profile: VersionJson =
+        serde_json::from_slice(&bytes).map_err(|e| ModsError::Invalid(format!("bad Fabric profile: {e}")))?;
     if profile.inherits_from.as_deref() != Some(game) {
         return Err(ModsError::Invalid(format!(
             "Fabric profile {} targets {:?}, expected {game}",
@@ -114,32 +94,16 @@ mod tests {
             .await;
 
         let http = reqwest::Client::new();
-        let loaders = fabric_loaders(&http, &server.uri(), "1.21.4")
-            .await
-            .unwrap();
-        assert_eq!(
-            loaders,
-            [FabricLoader {
-                version: "0.16.10".into(),
-                stable: true
-            }]
-        );
+        let loaders = fabric_loaders(&http, &server.uri(), "1.21.4").await.unwrap();
+        assert_eq!(loaders, [FabricLoader { version: "0.16.10".into(), stable: true }]);
 
         let dir = tempfile::tempdir().unwrap();
         let dirs = DataDir::at(dir.path());
-        let id = install_fabric(&http, &server.uri(), &dirs, "1.21.4", "0.16.10")
-            .await
-            .unwrap();
+        let id = install_fabric(&http, &server.uri(), &dirs, "1.21.4", "0.16.10").await.unwrap();
         assert_eq!(id, "fabric-loader-0.16.10-1.21.4");
-        assert!(
-            dir.path()
-                .join("versions/fabric-loader-0.16.10-1.21.4/fabric-loader-0.16.10-1.21.4.json")
-                .exists()
-        );
+        assert!(dir.path().join("versions/fabric-loader-0.16.10-1.21.4/fabric-loader-0.16.10-1.21.4.json").exists());
 
-        let err = install_fabric(&http, &server.uri(), &dirs, "1.8.9", "0.16.10")
-            .await
-            .unwrap_err();
+        let err = install_fabric(&http, &server.uri(), &dirs, "1.8.9", "0.16.10").await.unwrap_err();
         assert!(err.to_string().contains("expected 1.8.9"), "{err}");
     }
 }

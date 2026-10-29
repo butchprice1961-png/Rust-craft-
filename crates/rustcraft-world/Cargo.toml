@@ -1,0 +1,17 @@
+[package]
+name = "rustcraft-world"
+description = "Blocks, chunks, lighting, world storage and terrain generation for RustCraft's 1.8 engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rustcraft-core.workspace = true
+flate2 = "1.1.10"
+glam.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -99,10 +99,7 @@ async fn post_json(
         .await
         .map_err(|source| AuthError::Network { stage, source })?;
     let status = response.status().as_u16();
-    let text = response
-        .text()
-        .await
-        .map_err(|source| AuthError::Network { stage, source })?;
+    let text = response.text().await.map_err(|source| AuthError::Network { stage, source })?;
     Ok((status, text))
 }
 
@@ -111,30 +108,18 @@ fn parse_xbox(stage: &'static str, status: u16, body: &str) -> Result<XboxToken,
         if let Ok(e) = serde_json::from_str::<XboxErrorBody>(body) {
             return Err(AuthError::Xbox(XboxIssue::from_code(e.xerr)));
         }
-        return Err(AuthError::Http {
-            stage,
-            status,
-            body: summarize(body),
-        });
+        return Err(AuthError::Http { stage, status, body: summarize(body) });
     }
-    let r: XboxResponse = serde_json::from_str(body).map_err(|e| AuthError::Protocol {
-        stage,
-        detail: e.to_string(),
-    })?;
+    let r: XboxResponse =
+        serde_json::from_str(body).map_err(|e| AuthError::Protocol { stage, detail: e.to_string() })?;
     let user_hash = r
         .display_claims
         .xui
         .into_iter()
         .next()
-        .ok_or_else(|| AuthError::Protocol {
-            stage,
-            detail: "no user hash".into(),
-        })?
+        .ok_or_else(|| AuthError::Protocol { stage, detail: "no user hash".into() })?
         .uhs;
-    Ok(XboxToken {
-        token: Secret::new(r.token),
-        user_hash,
-    })
+    Ok(XboxToken { token: Secret::new(r.token), user_hash })
 }
 
 pub(crate) async fn xbox_user(
@@ -156,11 +141,7 @@ pub(crate) async fn xbox_user(
     parse_xbox(STAGE, status, &text)
 }
 
-pub(crate) async fn xsts(
-    http: &reqwest::Client,
-    ep: &Endpoints,
-    user_token: &Secret,
-) -> Result<XboxToken, AuthError> {
+pub(crate) async fn xsts(http: &reqwest::Client, ep: &Endpoints, user_token: &Secret) -> Result<XboxToken, AuthError> {
     const STAGE: &str = "Xbox XSTS authorization";
     let body = json!({
         "Properties": { "SandboxId": "RETAIL", "UserTokens": [user_token.expose()] },
@@ -183,28 +164,17 @@ pub(crate) async fn minecraft_login(
     xsts: &XboxToken,
 ) -> Result<(Secret, Duration), AuthError> {
     const STAGE: &str = "Minecraft services login";
-    let body =
-        json!({ "identityToken": format!("XBL3.0 x={};{}", xsts.user_hash, xsts.token.expose()) });
+    let body = json!({ "identityToken": format!("XBL3.0 x={};{}", xsts.user_hash, xsts.token.expose()) });
     let (status, text) = post_json(http, STAGE, &ep.minecraft_login, body).await?;
     match status {
         200 => {
             let r: LoginResponse =
-                serde_json::from_str(&text).map_err(|e| AuthError::Protocol {
-                    stage: STAGE,
-                    detail: e.to_string(),
-                })?;
-            Ok((
-                Secret::new(r.access_token),
-                Duration::from_secs(r.expires_in),
-            ))
+                serde_json::from_str(&text).map_err(|e| AuthError::Protocol { stage: STAGE, detail: e.to_string() })?;
+            Ok((Secret::new(r.access_token), Duration::from_secs(r.expires_in)))
         }
         403 if text.contains("Invalid app registration") => Err(AuthError::AppNotApproved),
         429 => Err(AuthError::RateLimited),
-        _ => Err(AuthError::Http {
-            stage: STAGE,
-            status,
-            body: summarize(&text),
-        }),
+        _ => Err(AuthError::Http { stage: STAGE, status, body: summarize(&text) }),
     }
 }
 
@@ -223,10 +193,7 @@ async fn get(
         .await
         .map_err(|source| AuthError::Network { stage, source })?;
     let status = response.status().as_u16();
-    let text = response
-        .text()
-        .await
-        .map_err(|source| AuthError::Network { stage, source })?;
+    let text = response.text().await.map_err(|source| AuthError::Network { stage, source })?;
     if status == 429 {
         return Err(AuthError::RateLimited);
     }
@@ -251,28 +218,13 @@ pub(crate) async fn owns_java_edition(
 ) -> Result<bool, AuthError> {
     const STAGE: &str = "Minecraft entitlement check";
     let request_id = uuid_v4();
-    let (status, text) = get(
-        http,
-        STAGE,
-        &ep.entitlements,
-        token,
-        &[("requestId", &request_id)],
-    )
-    .await?;
+    let (status, text) = get(http, STAGE, &ep.entitlements, token, &[("requestId", &request_id)]).await?;
     if status != 200 {
-        return Err(AuthError::Http {
-            stage: STAGE,
-            status,
-            body: summarize(&text),
-        });
+        return Err(AuthError::Http { stage: STAGE, status, body: summarize(&text) });
     }
-    let e: Entitlements = serde_json::from_str(&text).map_err(|e| AuthError::Protocol {
-        stage: STAGE,
-        detail: e.to_string(),
-    })?;
-    Ok(e.items
-        .iter()
-        .any(|i| i.name == "game_minecraft" || i.name == "product_minecraft"))
+    let e: Entitlements =
+        serde_json::from_str(&text).map_err(|e| AuthError::Protocol { stage: STAGE, detail: e.to_string() })?;
+    Ok(e.items.iter().any(|i| i.name == "game_minecraft" || i.name == "product_minecraft"))
 }
 
 #[derive(Deserialize)]
@@ -299,27 +251,12 @@ pub(crate) async fn profile(
     match status {
         200 => {
             let p: ProfileResponse =
-                serde_json::from_str(&text).map_err(|e| AuthError::Protocol {
-                    stage: STAGE,
-                    detail: e.to_string(),
-                })?;
-            let skin_url = p
-                .skins
-                .into_iter()
-                .find(|s| s.state == "ACTIVE")
-                .map(|s| s.url);
-            Ok(Some(Profile {
-                id: p.id,
-                name: p.name,
-                skin_url,
-            }))
+                serde_json::from_str(&text).map_err(|e| AuthError::Protocol { stage: STAGE, detail: e.to_string() })?;
+            let skin_url = p.skins.into_iter().find(|s| s.state == "ACTIVE").map(|s| s.url);
+            Ok(Some(Profile { id: p.id, name: p.name, skin_url }))
         }
         404 => Ok(None),
-        _ => Err(AuthError::Http {
-            stage: STAGE,
-            status,
-            body: summarize(&text),
-        }),
+        _ => Err(AuthError::Http { stage: STAGE, status, body: summarize(&text) }),
     }
 }
 
@@ -357,11 +294,7 @@ struct Ban {
 }
 
 /// Never fails: an unreachable privilege service leaves the fields unknown.
-pub(crate) async fn multiplayer(
-    http: &reqwest::Client,
-    ep: &Endpoints,
-    token: &Secret,
-) -> Multiplayer {
+pub(crate) async fn multiplayer(http: &reqwest::Client, ep: &Endpoints, token: &Secret) -> Multiplayer {
     let fetched = get(http, "player attributes", &ep.attributes, token, &[]).await;
     let attrs = match fetched {
         Ok((200, text)) => serde_json::from_str::<Attributes>(&text).ok(),
@@ -374,21 +307,12 @@ pub(crate) async fn multiplayer(
     let privileges = attrs.privileges;
     let ban = attrs.ban_status.and_then(|b| {
         b.banned_scopes.get("MULTIPLAYER").map(|ban| {
-            ban.reason_message
-                .clone()
-                .or_else(|| ban.reason.clone())
-                .unwrap_or_else(|| "no reason given".into())
+            ban.reason_message.clone().or_else(|| ban.reason.clone()).unwrap_or_else(|| "no reason given".into())
         })
     });
     Multiplayer {
-        servers: privileges
-            .as_ref()
-            .and_then(|p| p.multiplayer_server.as_ref())
-            .map(|p| p.enabled),
-        chat: privileges
-            .as_ref()
-            .and_then(|p| p.online_chat.as_ref())
-            .map(|p| p.enabled),
+        servers: privileges.as_ref().and_then(|p| p.multiplayer_server.as_ref()).map(|p| p.enabled),
+        chat: privileges.as_ref().and_then(|p| p.online_chat.as_ref()).map(|p| p.enabled),
         ban_reason: ban,
     }
 }
@@ -399,14 +323,7 @@ fn uuid_v4() -> String {
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
     let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    format!(
-        "{}-{}-{}-{}-{}",
-        &h[..8],
-        &h[8..12],
-        &h[12..16],
-        &h[16..20],
-        &h[20..]
-    )
+    format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
 }
 
 #[cfg(test)]
@@ -416,17 +333,9 @@ mod tests {
     #[test]
     fn xerr_codes_map_to_actionable_messages() {
         assert_eq!(XboxIssue::from_code(2148916233), XboxIssue::NoXboxProfile);
-        assert_eq!(
-            XboxIssue::from_code(2148916238),
-            XboxIssue::ChildNotInFamily
-        );
+        assert_eq!(XboxIssue::from_code(2148916238), XboxIssue::ChildNotInFamily);
         assert!(XboxIssue::from_code(1).message().contains("XErr 1"));
-        let err = parse_xbox(
-            "x",
-            401,
-            r#"{"Identity":"0","XErr":2148916235,"Message":"","Redirect":""}"#,
-        )
-        .unwrap_err();
+        let err = parse_xbox("x", 401, r#"{"Identity":"0","XErr":2148916235,"Message":"","Redirect":""}"#).unwrap_err();
         assert!(matches!(err, AuthError::Xbox(XboxIssue::RegionUnavailable)));
     }
 

@@ -11,9 +11,7 @@ pub mod launch;
 pub mod manifest;
 pub mod version;
 
-pub use download::{
-    DownloadError, Downloader, FileDownload, Progress, http_client, http_client_builder,
-};
+pub use download::{DownloadError, Downloader, FileDownload, Progress, http_client, http_client_builder};
 pub use launch::{Installed, Installer, LaunchAuth, LaunchCommand, LaunchOptions, build_command};
 pub use manifest::{VersionEntry, VersionKind, VersionManifest};
 pub use version::{Platform, VersionJson};

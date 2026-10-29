@@ -18,11 +18,7 @@ impl InstanceLock {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(path)?;
+        let file = OpenOptions::new().create(true).truncate(false).write(true).open(path)?;
         match file.try_lock() {
             Ok(()) => Ok(Some(Self { _file: file })),
             Err(TryLockError::WouldBlock) => Ok(None),
@@ -51,11 +47,7 @@ pub fn parse_java_version(output: &str) -> Option<(u32, String, bool)> {
     let version = first.split('"').nth(1)?.to_string();
     let mut parts = version.split(|c: char| !c.is_ascii_digit());
     let first_num: u32 = parts.next()?.parse().ok()?;
-    let major = if first_num == 1 {
-        parts.next()?.parse().ok()?
-    } else {
-        first_num
-    };
+    let major = if first_num == 1 { parts.next()?.parse().ok()? } else { first_num };
     Some((major, version, output.contains("64-Bit")))
 }
 
@@ -65,17 +57,8 @@ pub fn probe_java(java: &Path) -> Option<JavaInstall> {
     let text = String::from_utf8_lossy(&output.stderr);
     let (major, version, is_64bit) = parse_java_version(&text)?;
     let javaw = java.with_file_name("javaw.exe");
-    let path = if cfg!(windows) && javaw.exists() {
-        javaw
-    } else {
-        java.to_path_buf()
-    };
-    Some(JavaInstall {
-        path,
-        major,
-        version,
-        is_64bit,
-    })
+    let path = if cfg!(windows) && javaw.exists() { javaw } else { java.to_path_buf() };
+    Some(JavaInstall { path, major, version, is_64bit })
 }
 
 /// Finds Java installations in the usual places. Blocking: it runs each
@@ -89,34 +72,17 @@ pub fn discover_java() -> Vec<JavaInstall> {
     if let Some(path) = std::env::var_os("PATH") {
         candidates.extend(std::env::split_paths(&path).map(|d| d.join(exe)));
     }
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_default();
+    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
     let roots: Vec<(PathBuf, &str)> = if cfg!(windows) {
-        let pf = std::env::var_os("ProgramFiles")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| "C:\\Program Files".into());
-        [
-            "Java",
-            "Eclipse Adoptium",
-            "Microsoft",
-            "Zulu",
-            "BellSoft",
-            "Amazon Corretto",
-        ]
-        .into_iter()
-        .map(|v| (pf.join(v), "bin"))
-        .collect()
+        let pf = std::env::var_os("ProgramFiles").map(PathBuf::from).unwrap_or_else(|| "C:\\Program Files".into());
+        ["Java", "Eclipse Adoptium", "Microsoft", "Zulu", "BellSoft", "Amazon Corretto"]
+            .into_iter()
+            .map(|v| (pf.join(v), "bin"))
+            .collect()
     } else if cfg!(target_os = "macos") {
         vec![
-            (
-                "/Library/Java/JavaVirtualMachines".into(),
-                "Contents/Home/bin",
-            ),
-            (
-                home.join("Library/Java/JavaVirtualMachines"),
-                "Contents/Home/bin",
-            ),
+            ("/Library/Java/JavaVirtualMachines".into(), "Contents/Home/bin"),
+            (home.join("Library/Java/JavaVirtualMachines"), "Contents/Home/bin"),
         ]
     } else {
         vec![
@@ -150,13 +116,7 @@ pub fn pick_java(installs: &[JavaInstall], major: u32) -> Option<&JavaInstall> {
         .iter()
         .filter(|j| j.major == major)
         .max_by_key(|j| j.is_64bit)
-        .or_else(|| {
-            if major >= 17 {
-                installs.iter().find(|j| j.major >= major)
-            } else {
-                None
-            }
-        })
+        .or_else(|| if major >= 17 { installs.iter().find(|j| j.major >= major) } else { None })
 }
 
 #[cfg(test)]
@@ -169,16 +129,8 @@ mod tests {
         assert_eq!(parse_java_version(j8), Some((8, "1.8.0_402".into(), true)));
         let j21 = "openjdk version \"21.0.12\" 2026-07-15\nOpenJDK Runtime Environment\nOpenJDK 64-Bit Server VM";
         assert_eq!(parse_java_version(j21).unwrap().0, 21);
-        assert_eq!(
-            parse_java_version("openjdk version \"25-ea\"").unwrap().0,
-            25
-        );
-        assert_eq!(
-            parse_java_version("Picked up JAVA_TOOL_OPTIONS: x\nopenjdk version \"17\"")
-                .unwrap()
-                .0,
-            17
-        );
+        assert_eq!(parse_java_version("openjdk version \"25-ea\"").unwrap().0, 25);
+        assert_eq!(parse_java_version("Picked up JAVA_TOOL_OPTIONS: x\nopenjdk version \"17\"").unwrap().0, 17);
         assert!(parse_java_version("garbage").is_none());
     }
 

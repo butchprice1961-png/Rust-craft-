@@ -15,9 +15,7 @@ use rustcraft_core::fs::{safe_join, write_atomic};
 use crate::AssetsError;
 use crate::download::{Downloader, FileDownload, Progress};
 use crate::manifest::{VERSION_MANIFEST_URL, VersionManifest};
-use crate::version::{
-    Argument, NativeJar, OneOrMany, Platform, VersionJson, resolve_libraries, rules_allow,
-};
+use crate::version::{Argument, NativeJar, OneOrMany, Platform, VersionJson, resolve_libraries, rules_allow};
 
 pub const RESOURCES_URL: &str = "https://resources.download.minecraft.net";
 
@@ -37,21 +35,14 @@ impl AssetObject {
     /// `<first two hex digits>/<hash>`, the content-addressed object path.
     pub fn rel_path(&self) -> Result<String, AssetsError> {
         if self.hash.len() != 40 || !self.hash.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(AssetsError::Metadata(format!(
-                "bad asset hash {:?}",
-                self.hash
-            )));
+            return Err(AssetsError::Metadata(format!("bad asset hash {:?}", self.hash)));
         }
         Ok(format!("{}/{}", &self.hash[..2], self.hash))
     }
 }
 
 impl AssetIndex {
-    pub fn downloads(
-        &self,
-        objects_dir: &Path,
-        base_url: &str,
-    ) -> Result<Vec<FileDownload>, AssetsError> {
+    pub fn downloads(&self, objects_dir: &Path, base_url: &str) -> Result<Vec<FileDownload>, AssetsError> {
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         for object in self.objects.values() {
@@ -79,10 +70,7 @@ pub struct Endpoints {
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Self {
-            manifest: VERSION_MANIFEST_URL.into(),
-            resources: RESOURCES_URL.into(),
-        }
+        Self { manifest: VERSION_MANIFEST_URL.into(), resources: RESOURCES_URL.into() }
     }
 }
 
@@ -106,12 +94,7 @@ pub struct Installer {
 
 impl Installer {
     pub fn new(dirs: DataDir, downloader: Downloader) -> Self {
-        Self {
-            dirs,
-            downloader,
-            platform: Platform::current(),
-            endpoints: Endpoints::default(),
-        }
+        Self { dirs, downloader, platform: Platform::current(), endpoints: Endpoints::default() }
     }
 
     /// The last downloaded manifest, without touching the network.
@@ -129,17 +112,11 @@ impl Installer {
     /// Loads `id` and every `inheritsFrom` ancestor, merged into one.
     /// Versions missing from the manifest (loader profiles) must already be
     /// installed locally.
-    pub async fn resolve(
-        &self,
-        id: &str,
-        manifest: Option<&VersionManifest>,
-    ) -> Result<VersionJson, AssetsError> {
+    pub async fn resolve(&self, id: &str, manifest: Option<&VersionManifest>) -> Result<VersionJson, AssetsError> {
         let mut chain = vec![self.load_version(id, manifest).await?];
         while let Some(parent) = chain.last().and_then(|v| v.inherits_from.clone()) {
             if chain.len() >= 8 {
-                return Err(AssetsError::Metadata(format!(
-                    "inheritsFrom chain of {id} is too deep"
-                )));
+                return Err(AssetsError::Metadata(format!("inheritsFrom chain of {id} is too deep")));
             }
             chain.push(self.load_version(&parent, manifest).await?);
         }
@@ -150,20 +127,13 @@ impl Installer {
         Ok(merged)
     }
 
-    async fn load_version(
-        &self,
-        id: &str,
-        manifest: Option<&VersionManifest>,
-    ) -> Result<VersionJson, AssetsError> {
+    async fn load_version(&self, id: &str, manifest: Option<&VersionManifest>) -> Result<VersionJson, AssetsError> {
         let path = self.dirs.version_dir(id)?.join(format!("{id}.json"));
         match manifest.and_then(|m| m.get(id)) {
             Some(entry) => self.json(&entry.url, &path, entry.sha1.as_deref()).await,
             None => {
                 let bytes = std::fs::read(&path).map_err(|e| {
-                    AssetsError::Metadata(format!(
-                        "version {id} is not installed ({}: {e})",
-                        path.display()
-                    ))
+                    AssetsError::Metadata(format!("version {id} is not installed ({}: {e})", path.display()))
                 })?;
                 Ok(serde_json::from_slice(&bytes)?)
             }
@@ -180,15 +150,8 @@ impl Installer {
         sha1: Option<&str>,
     ) -> Result<T, AssetsError> {
         if let Some(sha1) = sha1 {
-            let file = FileDownload {
-                url: url.into(),
-                path: cache.into(),
-                sha1: Some(sha1.into()),
-                size: None,
-            };
-            self.downloader
-                .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-                .await?;
+            let file = FileDownload { url: url.into(), path: cache.into(), sha1: Some(sha1.into()), size: None };
+            self.downloader.fetch_one(&file, &Progress::default(), &CancellationToken::new()).await?;
             return Ok(serde_json::from_slice(&tokio::fs::read(cache).await?)?);
         }
         match self.downloader.get_bytes(url).await {
@@ -244,17 +207,9 @@ impl Installer {
             .asset_index
             .as_ref()
             .ok_or_else(|| AssetsError::Metadata(format!("{} has no assetIndex", version.id)))?;
-        let index_path = safe_join(
-            &self.dirs.assets().join("indexes"),
-            &format!("{}.json", index_ref.id),
-        )?;
-        let index: AssetIndex = self
-            .json(&index_ref.url, &index_path, Some(&index_ref.sha1))
-            .await?;
-        files.extend(index.downloads(
-            &self.dirs.assets().join("objects"),
-            &self.endpoints.resources,
-        )?);
+        let index_path = safe_join(&self.dirs.assets().join("indexes"), &format!("{}.json", index_ref.id))?;
+        let index: AssetIndex = self.json(&index_ref.url, &index_path, Some(&index_ref.sha1)).await?;
+        files.extend(index.downloads(&self.dirs.assets().join("objects"), &self.endpoints.resources)?);
 
         self.downloader.fetch_all(files, progress, cancel).await?;
 
@@ -354,12 +309,7 @@ impl LaunchCommand {
     /// A command built outside [`build_command`]; `secret` (if non-empty)
     /// is redacted from [`Self::redacted_args`].
     pub fn new(program: PathBuf, args: Vec<String>, cwd: PathBuf, secret: String) -> Self {
-        Self {
-            program,
-            args,
-            cwd,
-            secret,
-        }
+        Self { program, args, cwd, secret }
     }
 
     pub fn to_command(&self) -> std::process::Command {
@@ -372,13 +322,7 @@ impl LaunchCommand {
     pub fn redacted_args(&self) -> Vec<String> {
         self.args
             .iter()
-            .map(|a| {
-                if self.secret.is_empty() {
-                    a.clone()
-                } else {
-                    a.replace(&self.secret, "<redacted>")
-                }
-            })
+            .map(|a| if self.secret.is_empty() { a.clone() } else { a.replace(&self.secret, "<redacted>") })
             .collect()
     }
 }
@@ -389,10 +333,8 @@ pub fn build_command(
     platform: Platform,
 ) -> Result<LaunchCommand, AssetsError> {
     let v = &installed.version;
-    let main_class = v
-        .main_class
-        .as_deref()
-        .ok_or_else(|| AssetsError::Metadata(format!("{} has no mainClass", v.id)))?;
+    let main_class =
+        v.main_class.as_deref().ok_or_else(|| AssetsError::Metadata(format!("{} has no mainClass", v.id)))?;
 
     let classpath = installed
         .classpath
@@ -400,20 +342,15 @@ pub fn build_command(
         .map(|p| p.to_string_lossy())
         .collect::<Vec<_>>()
         .join(platform.classpath_separator());
-    let (host, port) = match opts
-        .server
-        .as_deref()
-        .map(|s| s.rsplit_once(':').unwrap_or((s, "25565")))
-    {
+    let (host, port) = match opts.server.as_deref().map(|s| s.rsplit_once(':').unwrap_or((s, "25565"))) {
         Some((h, p)) => (h.to_string(), p.to_string()),
         None => Default::default(),
     };
     let quick_play = opts.server.is_some()
         && v.arguments.iter().flat_map(|a| &a.game).any(|a| match a {
-            Argument::Conditional {
-                value: OneOrMany::Many(vals),
-                ..
-            } => vals.iter().any(|s| s.contains("quickPlayMultiplayer")),
+            Argument::Conditional { value: OneOrMany::Many(vals), .. } => {
+                vals.iter().any(|s| s.contains("quickPlayMultiplayer"))
+            }
             _ => false,
         });
 
@@ -429,18 +366,9 @@ pub fn build_command(
     let vars: BTreeMap<&str, String> = [
         ("auth_player_name", opts.auth.player_name.clone()),
         ("version_name", v.id.clone()),
-        (
-            "game_directory",
-            opts.game_dir.to_string_lossy().into_owned(),
-        ),
-        (
-            "assets_root",
-            opts.assets_dir.to_string_lossy().into_owned(),
-        ),
-        (
-            "game_assets",
-            opts.assets_dir.to_string_lossy().into_owned(),
-        ),
+        ("game_directory", opts.game_dir.to_string_lossy().into_owned()),
+        ("assets_root", opts.assets_dir.to_string_lossy().into_owned()),
+        ("game_assets", opts.assets_dir.to_string_lossy().into_owned()),
         ("assets_index_name", installed.assets_index.clone()),
         ("auth_uuid", opts.auth.uuid.clone()),
         ("auth_access_token", opts.auth.access_token.clone()),
@@ -449,22 +377,13 @@ pub fn build_command(
         ("clientid", opts.auth.client_id.clone()),
         ("user_type", opts.auth.user_type.clone()),
         ("user_properties", "{}".into()),
-        (
-            "version_type",
-            v.kind.map_or("release", |k| k.label()).to_lowercase(),
-        ),
-        (
-            "natives_directory",
-            installed.natives_dir.to_string_lossy().into_owned(),
-        ),
+        ("version_type", v.kind.map_or("release", |k| k.label()).to_lowercase()),
+        ("natives_directory", installed.natives_dir.to_string_lossy().into_owned()),
         ("launcher_name", "RustCraft".into()),
         ("launcher_version", env!("CARGO_PKG_VERSION").into()),
         ("classpath", classpath),
         ("classpath_separator", platform.classpath_separator().into()),
-        (
-            "library_directory",
-            opts.libraries_dir.to_string_lossy().into_owned(),
-        ),
+        ("library_directory", opts.libraries_dir.to_string_lossy().into_owned()),
         ("resolution_width", width.to_string()),
         ("resolution_height", height.to_string()),
         ("quickPlayMultiplayer", format!("{host}:{port}")),
@@ -477,16 +396,10 @@ pub fn build_command(
         for arg in args {
             match arg {
                 Argument::Plain(s) => out.push(substitute(s, &vars)),
-                Argument::Conditional { rules, value }
-                    if rules_allow(rules, platform, &features) =>
-                {
-                    match value {
-                        OneOrMany::One(s) => out.push(substitute(s, &vars)),
-                        OneOrMany::Many(list) => {
-                            out.extend(list.iter().map(|s| substitute(s, &vars)))
-                        }
-                    }
-                }
+                Argument::Conditional { rules, value } if rules_allow(rules, platform, &features) => match value {
+                    OneOrMany::One(s) => out.push(substitute(s, &vars)),
+                    OneOrMany::Many(list) => out.extend(list.iter().map(|s| substitute(s, &vars))),
+                },
                 Argument::Conditional { .. } => {}
             }
         }
@@ -495,22 +408,14 @@ pub fn build_command(
 
     let mut args = match &v.arguments {
         Some(a) if !a.jvm.is_empty() => expand(&a.jvm),
-        _ => vec![
-            substitute("-Djava.library.path=${natives_directory}", &vars),
-            "-cp".into(),
-            vars["classpath"].clone(),
-        ],
+        _ => {
+            vec![substitute("-Djava.library.path=${natives_directory}", &vars), "-cp".into(), vars["classpath"].clone()]
+        }
     };
-    if let (Some(cfg), Some(path)) = (
-        v.logging.as_ref().and_then(|l| l.client.as_ref()),
-        &installed.logging_config,
-    ) {
+    if let (Some(cfg), Some(path)) = (v.logging.as_ref().and_then(|l| l.client.as_ref()), &installed.logging_config) {
         args.push(cfg.argument.replace("${path}", &path.to_string_lossy()));
     }
-    args.push(format!(
-        "-Xms{}M",
-        opts.min_memory_mb.min(opts.max_memory_mb)
-    ));
+    args.push(format!("-Xms{}M", opts.min_memory_mb.min(opts.max_memory_mb)));
     args.push(format!("-Xmx{}M", opts.max_memory_mb));
     args.extend(opts.extra_jvm_args.iter().cloned());
     args.push(main_class.into());
@@ -523,12 +428,7 @@ pub fn build_command(
                 args.extend(["--height".into(), vars["resolution_height"].clone()]);
             }
         }
-        _ => args.extend(expand(
-            &v.arguments
-                .as_ref()
-                .map(|a| a.game.clone())
-                .unwrap_or_default(),
-        )),
+        _ => args.extend(expand(&v.arguments.as_ref().map(|a| a.game.clone()).unwrap_or_default())),
     }
     if opts.server.is_some() && !quick_play {
         args.extend(["--server".into(), host, "--port".into(), port]);
@@ -549,9 +449,7 @@ fn substitute(template: &str, vars: &BTreeMap<&str, String>) -> String {
     while let Some(start) = rest.find("${") {
         out.push_str(&rest[..start]);
         let after = &rest[start + 2..];
-        let value = after
-            .find('}')
-            .and_then(|end| Some((end, vars.get(&after[..end])?)));
+        let value = after.find('}').and_then(|end| Some((end, vars.get(&after[..end])?)));
         match value {
             Some((end, value)) => {
                 out.push_str(value);
@@ -572,10 +470,7 @@ mod tests {
     use super::*;
     use crate::version::Os;
 
-    const LINUX: Platform = Platform {
-        os: Os::Linux,
-        arch: "x86_64",
-    };
+    const LINUX: Platform = Platform { os: Os::Linux, arch: "x86_64" };
 
     fn installed(fixture: &str) -> Installed {
         let version: VersionJson = serde_json::from_str(fixture).unwrap();
@@ -611,10 +506,7 @@ mod tests {
     }
 
     fn after<'a>(args: &'a [String], flag: &str) -> &'a str {
-        let i = args
-            .iter()
-            .position(|a| a == flag)
-            .unwrap_or_else(|| panic!("{flag} missing in {args:?}"));
+        let i = args.iter().position(|a| a == flag).unwrap_or_else(|| panic!("{flag} missing in {args:?}"));
         &args[i + 1]
     }
 
@@ -629,10 +521,7 @@ mod tests {
         let a = &cmd.args;
         assert_eq!(a[0], "-Djava.library.path=/n");
         assert_eq!(after(a, "-cp"), "/l/a.jar:/v/client.jar");
-        let main = a
-            .iter()
-            .position(|s| s == "net.minecraft.client.main.Main")
-            .unwrap();
+        let main = a.iter().position(|s| s == "net.minecraft.client.main.Main").unwrap();
         assert!(a[..main].contains(&"-Xmx2048M".to_string()));
         assert!(a[..main].contains(&"-XX:+UseG1GC".to_string()));
         assert_eq!(after(a, "--username"), "Steve");
@@ -652,48 +541,25 @@ mod tests {
         o.resolution = Some((1280, 720));
         let a = build_command(&inst, &o, LINUX).unwrap().args;
         assert!(a.contains(&"-Dminecraft.launcher.brand=RustCraft".to_string()));
-        assert!(
-            a.contains(&"-Dlog4j.configurationFile=/a/log_configs/client-1.12.xml".to_string())
-        );
+        assert!(a.contains(&"-Dlog4j.configurationFile=/a/log_configs/client-1.12.xml".to_string()));
         assert!(!a.contains(&"-XstartOnFirstThread".to_string()));
         assert!(!a.contains(&"--demo".to_string()));
-        assert_eq!(
-            after(&a, "--quickPlayMultiplayer"),
-            "play.example.org:25570"
-        );
+        assert_eq!(after(&a, "--quickPlayMultiplayer"), "play.example.org:25570");
         assert!(!a.contains(&"--server".to_string()));
         assert_eq!(after(&a, "--width"), "1280");
         assert_eq!(after(&a, "--versionType"), "release");
         assert!(!a.contains(&"--quickPlayPath".to_string()));
 
-        let mac = build_command(
-            &inst,
-            &opts(None),
-            Platform {
-                os: Os::MacOs,
-                arch: "arm64",
-            },
-        )
-        .unwrap()
-        .args;
+        let mac = build_command(&inst, &opts(None), Platform { os: Os::MacOs, arch: "arm64" }).unwrap().args;
         assert_eq!(mac[0], "-XstartOnFirstThread");
         assert!(!mac.contains(&"--quickPlayMultiplayer".to_string()));
     }
 
     #[test]
     fn token_is_redacted_for_logs() {
-        let cmd = build_command(
-            &installed(include_str!("../tests/fixtures/1.8.9.json")),
-            &opts(None),
-            LINUX,
-        )
-        .unwrap();
+        let cmd = build_command(&installed(include_str!("../tests/fixtures/1.8.9.json")), &opts(None), LINUX).unwrap();
         assert!(cmd.args.iter().any(|a| a == "SECRET-TOKEN"));
-        assert!(
-            !cmd.redacted_args()
-                .iter()
-                .any(|a| a.contains("SECRET-TOKEN"))
-        );
+        assert!(!cmd.redacted_args().iter().any(|a| a.contains("SECRET-TOKEN")));
         assert!(!format!("{:?}", opts(None).auth).contains("SECRET"));
     }
 

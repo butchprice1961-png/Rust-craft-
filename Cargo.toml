@@ -15,9 +15,11 @@ rustcraft-assets = { path = "crates/rustcraft-assets" }
 rustcraft-auth = { path = "crates/rustcraft-auth" }
 rustcraft-platform = { path = "crates/rustcraft-platform" }
 rustcraft-mods = { path = "crates/rustcraft-mods" }
+rustcraft-world = { path = "crates/rustcraft-world" }
 
 anyhow = "1.0.104"
 dirs = "6.0.0"
+glam = { version = "0.34.1", features = ["bytemuck"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 hex = "0.4.3"
 open = "5.4.5"

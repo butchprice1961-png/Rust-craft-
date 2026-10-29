@@ -18,8 +18,8 @@ impl DataDir {
         if let Some(home) = std::env::var_os("RUSTCRAFT_HOME") {
             return Ok(Self::at(home));
         }
-        let base = dirs::data_dir()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no platform data directory"))?;
+        let base =
+            dirs::data_dir().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no platform data directory"))?;
         Ok(Self::at(base.join("RustCraft")))
     }
 

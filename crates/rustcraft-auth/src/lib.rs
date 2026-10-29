@@ -60,8 +60,7 @@ impl Default for Endpoints {
             token: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token".into(),
             xbox_user: "https://user.auth.xboxlive.com/user/authenticate".into(),
             xsts: "https://xsts.auth.xboxlive.com/xsts/authorize".into(),
-            minecraft_login: "https://api.minecraftservices.com/authentication/login_with_xbox"
-                .into(),
+            minecraft_login: "https://api.minecraftservices.com/authentication/login_with_xbox".into(),
             entitlements: "https://api.minecraftservices.com/entitlements/license".into(),
             profile: "https://api.minecraftservices.com/minecraft/profile".into(),
             attributes: "https://api.minecraftservices.com/player/attributes".into(),
@@ -90,11 +89,7 @@ impl AuthConfig {
     }
 
     pub fn new(client_id: impl Into<String>) -> Self {
-        Self {
-            client_id: client_id.into(),
-            endpoints: Endpoints::default(),
-            sign_in_timeout: Duration::from_secs(300),
-        }
+        Self { client_id: client_id.into(), endpoints: Endpoints::default(), sign_in_timeout: Duration::from_secs(300) }
     }
 }
 
@@ -120,9 +115,8 @@ impl Multiplayer {
         if let Some(reason) = &self.ban_reason {
             return Some(format!("This account is banned from multiplayer: {reason}"));
         }
-        (self.servers == Some(false)).then(|| {
-            "Multiplayer is disabled for this account (Xbox privacy or family settings).".into()
-        })
+        (self.servers == Some(false))
+            .then(|| "Multiplayer is disabled for this account (Xbox privacy or family settings).".into())
     }
 }
 
@@ -150,9 +144,7 @@ pub struct SignedIn {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
-    #[error(
-        "Microsoft sign-in is not configured: set RUSTCRAFT_MSA_CLIENT_ID (see docs/AUTHENTICATION.md)"
-    )]
+    #[error("Microsoft sign-in is not configured: set RUSTCRAFT_MSA_CLIENT_ID (see docs/AUTHENTICATION.md)")]
     NotConfigured,
     #[error("sign-in was cancelled")]
     Cancelled,
@@ -161,17 +153,12 @@ pub enum AuthError {
     #[error("sign-in was declined in the browser")]
     Denied,
     #[error("Microsoft sign-in failed: {error}{}", description.as_deref().map(|d| format!(" ({d})")).unwrap_or_default())]
-    OAuth {
-        error: String,
-        description: Option<String>,
-    },
+    OAuth { error: String, description: Option<String> },
     #[error("the saved sign-in has expired; please sign in again")]
     SessionExpired,
     #[error("{}", .0.message())]
     Xbox(XboxIssue),
-    #[error(
-        "this build's Azure application is not approved for Minecraft sign-in (see docs/AUTHENTICATION.md)"
-    )]
+    #[error("this build's Azure application is not approved for Minecraft sign-in (see docs/AUTHENTICATION.md)")]
     AppNotApproved,
     #[error("this Microsoft account does not own Minecraft: Java Edition")]
     NotOwned,
@@ -180,11 +167,7 @@ pub enum AuthError {
     #[error("Minecraft services are rate limiting sign-ins; try again in a minute")]
     RateLimited,
     #[error("{stage} failed with HTTP {status}{}", if body.is_empty() { String::new() } else { format!(": {body}") })]
-    Http {
-        stage: &'static str,
-        status: u16,
-        body: String,
-    },
+    Http { stage: &'static str, status: u16, body: String },
     #[error("network error during {stage}: {source}")]
     Network {
         stage: &'static str,
@@ -222,11 +205,7 @@ impl Authenticator {
     /// Interactive sign-in. `on_url` receives the Microsoft sign-in page URL
     /// to open in the system browser (see [`open_in_browser`]) and to show as
     /// a fallback link.
-    pub async fn sign_in(
-        &self,
-        on_url: impl FnOnce(&str),
-        cancel: &CancellationToken,
-    ) -> Result<SignedIn, AuthError> {
+    pub async fn sign_in(&self, on_url: impl FnOnce(&str), cancel: &CancellationToken) -> Result<SignedIn, AuthError> {
         let tokens = oauth::authorize_interactive(&self.http, &self.config, on_url, cancel).await?;
         self.finish(tokens).await
     }
@@ -251,12 +230,7 @@ impl Authenticator {
         };
         let multiplayer = services::multiplayer(&self.http, ep, &access_token).await;
         Ok(SignedIn {
-            session: Session {
-                profile,
-                access_token,
-                expires_at: SystemTime::now() + lifetime,
-                multiplayer,
-            },
+            session: Session { profile, access_token, expires_at: SystemTime::now() + lifetime, multiplayer },
             refresh_token: ms.refresh_token,
         })
     }
@@ -270,9 +244,5 @@ pub fn open_in_browser(url: &str) -> std::io::Result<()> {
 /// Keeps error bodies short and single-line for display.
 fn summarize(body: &str) -> String {
     let flat: String = body.split_whitespace().collect::<Vec<_>>().join(" ");
-    if flat.chars().count() > 300 {
-        flat.chars().take(300).collect::<String>() + "…"
-    } else {
-        flat
-    }
+    if flat.chars().count() > 300 { flat.chars().take(300).collect::<String>() + "…" } else { flat }
 }

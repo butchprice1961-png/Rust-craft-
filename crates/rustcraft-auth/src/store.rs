@@ -107,13 +107,7 @@ fn key(id: &str) -> String {
 impl Accounts {
     pub fn load(path: PathBuf, secrets: Box<dyn SecretStore>) -> Self {
         let (file, _) = load_toml_or_default(&path);
-        Self {
-            path,
-            file,
-            secrets,
-            unsaved: HashMap::new(),
-            sessions: HashMap::new(),
-        }
+        Self { path, file, secrets, unsaved: HashMap::new(), sessions: HashMap::new() }
     }
 
     pub fn records(&self) -> &[AccountRecord] {
@@ -162,11 +156,8 @@ impl Accounts {
                 None
             }
             Err(e) => {
-                tracing::warn!(
-                    "credential store unavailable, keeping sign-in for this session only: {e}"
-                );
-                self.unsaved
-                    .insert(id.clone(), signed_in.refresh_token.clone());
+                tracing::warn!("credential store unavailable, keeping sign-in for this session only: {e}");
+                self.unsaved.insert(id.clone(), signed_in.refresh_token.clone());
                 Some(format!(
                     "Your system credential store is unavailable ({e}); you will need to sign in again next time."
                 ))
@@ -217,10 +208,9 @@ impl Accounts {
                 self.store(signed_in)?;
                 Ok(session)
             }
-            Ok(_) => Err(AuthError::Protocol {
-                stage: "session renewal",
-                detail: "renewed a different profile".into(),
-            }),
+            Ok(_) => {
+                Err(AuthError::Protocol { stage: "session renewal", detail: "renewed a different profile".into() })
+            }
             Err(AuthError::SessionExpired) => {
                 let _ = self.secrets.delete(&key(id));
                 self.unsaved.remove(id);

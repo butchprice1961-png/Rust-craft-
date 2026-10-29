@@ -20,10 +20,7 @@ pub const USER_AGENT: &str = concat!("RustCraft/", env!("CARGO_PKG_VERSION"));
 /// HTTPS-only client shared by all metadata and file requests. TLS uses
 /// rustls with the OS trust store.
 pub fn http_client() -> reqwest::Client {
-    http_client_builder()
-        .https_only(true)
-        .build()
-        .expect("HTTP client configuration is static")
+    http_client_builder().https_only(true).build().expect("HTTP client configuration is static")
 }
 
 /// Base client settings; tests use it directly to reach plain-HTTP mocks.
@@ -59,17 +56,9 @@ pub enum DownloadError {
         source: reqwest::Error,
     },
     #[error("{}: expected SHA-1 {expected}, got {actual}", path.display())]
-    HashMismatch {
-        path: PathBuf,
-        expected: String,
-        actual: String,
-    },
+    HashMismatch { path: PathBuf, expected: String, actual: String },
     #[error("{}: expected {expected} bytes, got {actual}", path.display())]
-    SizeMismatch {
-        path: PathBuf,
-        expected: u64,
-        actual: u64,
-    },
+    SizeMismatch { path: PathBuf, expected: u64, actual: u64 },
     #[error("{} is missing and has no download URL (install it with its loader installer)", path.display())]
     NoSource { path: PathBuf },
     #[error("I/O error on {}: {source}", path.display())]
@@ -120,12 +109,7 @@ pub struct Downloader {
 
 impl Downloader {
     pub fn new(client: reqwest::Client) -> Self {
-        Self {
-            client,
-            concurrency: 16,
-            retries: 4,
-            backoff: Duration::from_millis(500),
-        }
+        Self { client, concurrency: 16, retries: 4, backoff: Duration::from_millis(500) }
     }
 
     pub fn with_backoff(mut self, backoff: Duration) -> Self {
@@ -139,20 +123,14 @@ impl Downloader {
 
     /// GETs a small document into memory, retrying transient failures.
     pub async fn get_bytes(&self, url: &str) -> Result<Vec<u8>, DownloadError> {
-        let network = |source| DownloadError::Network {
-            url: url.into(),
-            source,
-        };
+        let network = |source| DownloadError::Network { url: url.into(), source };
         let mut attempt = 0;
         loop {
             let result = async {
                 let response = self.client.get(url).send().await.map_err(network)?;
                 let status = response.status().as_u16();
                 if status != 200 {
-                    return Err(DownloadError::Status {
-                        url: url.into(),
-                        status,
-                    });
+                    return Err(DownloadError::Status { url: url.into(), status });
                 }
                 Ok(response.bytes().await.map_err(network)?.to_vec())
             }
@@ -175,9 +153,7 @@ impl Downloader {
         progress: &Arc<Progress>,
         cancel: &CancellationToken,
     ) -> Result<(), DownloadError> {
-        progress
-            .files_total
-            .fetch_add(files.len(), Ordering::Relaxed);
+        progress.files_total.fetch_add(files.len(), Ordering::Relaxed);
         let known: u64 = files.iter().filter_map(|f| f.size).sum();
         progress.bytes_total.fetch_add(known, Ordering::Relaxed);
         futures_util::stream::iter(files.into_iter().map(Ok))
@@ -196,15 +172,11 @@ impl Downloader {
         cancel: &CancellationToken,
     ) -> Result<(), DownloadError> {
         if is_valid(file).await? {
-            progress
-                .bytes_done
-                .fetch_add(file.size.unwrap_or(0), Ordering::Relaxed);
+            progress.bytes_done.fetch_add(file.size.unwrap_or(0), Ordering::Relaxed);
             return Ok(());
         }
         if file.url.is_empty() {
-            return Err(DownloadError::NoSource {
-                path: file.path.clone(),
-            });
+            return Err(DownloadError::NoSource { path: file.path.clone() });
         }
         let mut attempt = 0;
         loop {
@@ -212,9 +184,7 @@ impl Downloader {
             match self.try_fetch(file, progress, &counted, cancel).await {
                 Ok(()) => return Ok(()),
                 Err(e) => {
-                    progress
-                        .bytes_done
-                        .fetch_sub(counted.load(Ordering::Relaxed), Ordering::Relaxed);
+                    progress.bytes_done.fetch_sub(counted.load(Ordering::Relaxed), Ordering::Relaxed);
                     if !e.retryable() || attempt >= self.retries {
                         return Err(e);
                     }
@@ -236,10 +206,7 @@ impl Downloader {
         counted: &AtomicU64,
         cancel: &CancellationToken,
     ) -> Result<(), DownloadError> {
-        let io_err = |source| DownloadError::Io {
-            path: file.path.clone(),
-            source,
-        };
+        let io_err = |source| DownloadError::Io { path: file.path.clone(), source };
         let part = part_path(&file.path);
         if let Some(dir) = part.parent() {
             tokio::fs::create_dir_all(dir).await.map_err(io_err)?;
@@ -261,10 +228,7 @@ impl Downloader {
         if offset > 0 {
             request = request.header(reqwest::header::RANGE, format!("bytes={offset}-"));
         }
-        let network = |source| DownloadError::Network {
-            url: file.url.clone(),
-            source,
-        };
+        let network = |source| DownloadError::Network { url: file.url.clone(), source };
         let response = tokio::select! {
             _ = cancel.cancelled() => return Err(DownloadError::Cancelled),
             r = request.send() => r.map_err(network)?,
@@ -286,10 +250,7 @@ impl Downloader {
                 };
             }
             _ => {
-                return Err(DownloadError::Status {
-                    url: file.url.clone(),
-                    status,
-                });
+                return Err(DownloadError::Status { url: file.url.clone(), status });
             }
         };
         if !append {
@@ -319,9 +280,7 @@ impl Downloader {
             out.write_all(&chunk).await.map_err(io_err)?;
             hasher.update(&chunk);
             written += chunk.len() as u64;
-            progress
-                .bytes_done
-                .fetch_add(chunk.len() as u64, Ordering::Relaxed);
+            progress.bytes_done.fetch_add(chunk.len() as u64, Ordering::Relaxed);
             counted.fetch_add(chunk.len() as u64, Ordering::Relaxed);
         }
         out.flush().await.map_err(io_err)?;
@@ -329,10 +288,7 @@ impl Downloader {
         drop(out);
 
         let result = finish(file, &part, written, hasher).await;
-        if matches!(
-            result,
-            Err(DownloadError::HashMismatch { .. } | DownloadError::SizeMismatch { .. })
-        ) {
+        if matches!(result, Err(DownloadError::HashMismatch { .. } | DownloadError::SizeMismatch { .. })) {
             // Corrupt data must not be resumed from.
             let _ = tokio::fs::remove_file(&part).await;
         }
@@ -340,37 +296,19 @@ impl Downloader {
     }
 }
 
-async fn finish(
-    file: &FileDownload,
-    part: &Path,
-    len: u64,
-    hasher: Sha1,
-) -> Result<(), DownloadError> {
+async fn finish(file: &FileDownload, part: &Path, len: u64, hasher: Sha1) -> Result<(), DownloadError> {
     if let Some(expected) = file.size
         && expected != len
     {
-        return Err(DownloadError::SizeMismatch {
-            path: file.path.clone(),
-            expected,
-            actual: len,
-        });
+        return Err(DownloadError::SizeMismatch { path: file.path.clone(), expected, actual: len });
     }
     if let Some(expected) = &file.sha1 {
         let actual = hex::encode(hasher.finalize());
         if !actual.eq_ignore_ascii_case(expected) {
-            return Err(DownloadError::HashMismatch {
-                path: file.path.clone(),
-                expected: expected.clone(),
-                actual,
-            });
+            return Err(DownloadError::HashMismatch { path: file.path.clone(), expected: expected.clone(), actual });
         }
     }
-    tokio::fs::rename(part, &file.path)
-        .await
-        .map_err(|source| DownloadError::Io {
-            path: file.path.clone(),
-            source,
-        })
+    tokio::fs::rename(part, &file.path).await.map_err(|source| DownloadError::Io { path: file.path.clone(), source })
 }
 
 fn part_path(path: &Path) -> PathBuf {
@@ -385,10 +323,7 @@ pub async fn is_valid(file: &FileDownload) -> Result<bool, DownloadError> {
         Ok(m) => m,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(source) => {
-            return Err(DownloadError::Io {
-                path: file.path.clone(),
-                source,
-            });
+            return Err(DownloadError::Io { path: file.path.clone(), source });
         }
     };
     if file.size.is_some_and(|s| s != meta.len()) {
@@ -401,10 +336,7 @@ pub async fn is_valid(file: &FileDownload) -> Result<bool, DownloadError> {
     let actual = tokio::task::spawn_blocking(move || sha1_file(&path))
         .await
         .expect("hashing task panicked")
-        .map_err(|source| DownloadError::Io {
-            path: file.path.clone(),
-            source,
-        })?;
+        .map_err(|source| DownloadError::Io { path: file.path.clone(), source })?;
     Ok(actual.eq_ignore_ascii_case(&expected))
 }
 
@@ -428,8 +360,7 @@ mod tests {
 
     fn downloader() -> Downloader {
         // The mock server is plain HTTP, so skip the https-only client.
-        Downloader::new(http_client_builder().build().unwrap())
-            .with_backoff(Duration::from_millis(1))
+        Downloader::new(http_client_builder().build().unwrap()).with_backoff(Duration::from_millis(1))
     }
 
     fn target(dir: &Path, server: &MockServer) -> FileDownload {
@@ -458,15 +389,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = target(dir.path(), &server);
         let progress = Arc::new(Progress::default());
-        downloader()
-            .fetch_all(vec![file.clone()], &progress, &CancellationToken::new())
-            .await
-            .unwrap();
+        downloader().fetch_all(vec![file.clone()], &progress, &CancellationToken::new()).await.unwrap();
         assert_eq!(std::fs::read(&file.path).unwrap(), BODY);
-        assert_eq!(
-            progress.bytes_done.load(Ordering::Relaxed),
-            BODY.len() as u64
-        );
+        assert_eq!(progress.bytes_done.load(Ordering::Relaxed), BODY.len() as u64);
         assert_eq!(progress.files_done.load(Ordering::Relaxed), 1);
         assert!(!part_path(&file.path).exists());
     }
@@ -476,17 +401,13 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_bytes(b"the quick brown fox jumps over the lazy cat".as_slice()),
+                ResponseTemplate::new(200).set_body_bytes(b"the quick brown fox jumps over the lazy cat".as_slice()),
             )
             .mount(&server)
             .await;
         let dir = tempfile::tempdir().unwrap();
         let file = target(dir.path(), &server);
-        let err = downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap_err();
+        let err = downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap_err();
         assert!(matches!(err, DownloadError::HashMismatch { .. }), "{err}");
         assert!(!file.path.exists());
         assert!(!part_path(&file.path).exists());
@@ -507,28 +428,19 @@ mod tests {
         let file = target(dir.path(), &server);
         std::fs::create_dir_all(file.path.parent().unwrap()).unwrap();
         std::fs::write(part_path(&file.path), &BODY[..10]).unwrap();
-        downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap();
+        downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap();
         assert_eq!(std::fs::read(&file.path).unwrap(), BODY);
     }
 
     #[tokio::test]
     async fn server_ignoring_range_restarts_cleanly() {
         let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(BODY))
-            .mount(&server)
-            .await;
+        Mock::given(method("GET")).respond_with(ResponseTemplate::new(200).set_body_bytes(BODY)).mount(&server).await;
         let dir = tempfile::tempdir().unwrap();
         let file = target(dir.path(), &server);
         std::fs::create_dir_all(file.path.parent().unwrap()).unwrap();
         std::fs::write(part_path(&file.path), b"garbage!!").unwrap();
-        downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap();
+        downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap();
         assert_eq!(std::fs::read(&file.path).unwrap(), BODY);
     }
 
@@ -539,21 +451,14 @@ mod tests {
         let file = target(dir.path(), &server);
         std::fs::create_dir_all(file.path.parent().unwrap()).unwrap();
         std::fs::write(&file.path, BODY).unwrap();
-        downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap();
+        downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap();
         assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn not_found_fails_fast_and_cancel_stops() {
         let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/f"))
-            .respond_with(ResponseTemplate::new(404))
-            .mount(&server)
-            .await;
+        Mock::given(method("GET")).and(path("/f")).respond_with(ResponseTemplate::new(404)).mount(&server).await;
         Mock::given(method("GET"))
             .and(path("/slow"))
             .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
@@ -561,28 +466,19 @@ mod tests {
             .await;
         let dir = tempfile::tempdir().unwrap();
         let file = target(dir.path(), &server);
-        let err = downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap_err();
+        let err = downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap_err();
         assert!(matches!(err, DownloadError::Status { status: 404, .. }));
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
 
         let cancel = CancellationToken::new();
-        let slow = FileDownload {
-            url: format!("{}/slow", server.uri()),
-            ..file
-        };
+        let slow = FileDownload { url: format!("{}/slow", server.uri()), ..file };
         let canceller = cancel.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             canceller.cancel();
         });
         let started = std::time::Instant::now();
-        let err = downloader()
-            .fetch_one(&slow, &Progress::default(), &cancel)
-            .await
-            .unwrap_err();
+        let err = downloader().fetch_one(&slow, &Progress::default(), &cancel).await.unwrap_err();
         assert!(matches!(err, DownloadError::Cancelled));
         assert!(started.elapsed() < Duration::from_secs(5));
     }
@@ -590,16 +486,8 @@ mod tests {
     #[tokio::test]
     async fn missing_installer_file_reports_no_source() {
         let dir = tempfile::tempdir().unwrap();
-        let file = FileDownload {
-            url: String::new(),
-            path: dir.path().join("x.jar"),
-            sha1: None,
-            size: None,
-        };
-        let err = downloader()
-            .fetch_one(&file, &Progress::default(), &CancellationToken::new())
-            .await
-            .unwrap_err();
+        let file = FileDownload { url: String::new(), path: dir.path().join("x.jar"), sha1: None, size: None };
+        let err = downloader().fetch_one(&file, &Progress::default(), &CancellationToken::new()).await.unwrap_err();
         assert!(matches!(err, DownloadError::NoSource { .. }));
     }
 }

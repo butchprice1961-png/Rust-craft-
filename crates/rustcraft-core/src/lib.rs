@@ -3,6 +3,7 @@
 //! configuration persistence.
 
 pub mod fs;
+pub mod nbt;
 pub mod paths;
 
 pub use paths::DataDir;

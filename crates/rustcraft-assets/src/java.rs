@@ -14,7 +14,8 @@ use crate::download::{FileDownload, Progress};
 use crate::launch::Installer;
 use crate::version::{Os, Platform};
 
-pub const RUNTIME_INDEX_URL: &str = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
+pub const RUNTIME_INDEX_URL: &str =
+    "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json";
 
 /// This machine's key in the runtime index.
 pub fn runtime_platform(p: Platform) -> Option<&'static str> {
@@ -84,45 +85,27 @@ impl Installer {
         progress: &Arc<Progress>,
         cancel: &CancellationToken,
     ) -> Result<PathBuf, AssetsError> {
-        let platform = runtime_platform(self.platform).ok_or_else(|| {
-            AssetsError::Metadata("Mojang publishes no Java runtime for this platform".into())
-        })?;
-        let index: BTreeMap<String, BTreeMap<String, Vec<RuntimeEntry>>> = self
-            .json(
-                index_url,
-                &self.dirs.cache().join("java-runtimes.json"),
-                None,
-            )
-            .await?;
+        let platform = runtime_platform(self.platform)
+            .ok_or_else(|| AssetsError::Metadata("Mojang publishes no Java runtime for this platform".into()))?;
+        let index: BTreeMap<String, BTreeMap<String, Vec<RuntimeEntry>>> =
+            self.json(index_url, &self.dirs.cache().join("java-runtimes.json"), None).await?;
         let entry = index
             .get(platform)
             .and_then(|c| c.get(component))
             .and_then(|v| v.first())
-            .ok_or_else(|| {
-                AssetsError::Metadata(format!(
-                    "Mojang does not publish {component} for {platform}"
-                ))
-            })?;
+            .ok_or_else(|| AssetsError::Metadata(format!("Mojang does not publish {component} for {platform}")))?;
 
         let root = safe_join(&self.dirs.runtimes(), component)?;
         let manifest_path = safe_join(&self.dirs.runtimes(), &format!("{component}.json"))?;
-        let manifest: RuntimeManifest = self
-            .json(
-                &entry.manifest.url,
-                &manifest_path,
-                Some(&entry.manifest.sha1),
-            )
-            .await?;
+        let manifest: RuntimeManifest =
+            self.json(&entry.manifest.url, &manifest_path, Some(&entry.manifest.sha1)).await?;
 
         let (mut files, mut executables, mut links) = (Vec::new(), Vec::new(), Vec::new());
         for (rel, file) in &manifest.files {
             let dest = safe_join(&root, rel)?;
             match file {
                 RuntimeFile::Directory => std::fs::create_dir_all(&dest)?,
-                RuntimeFile::File {
-                    executable,
-                    downloads,
-                } => {
+                RuntimeFile::File { executable, downloads } => {
                     files.push(FileDownload {
                         url: downloads.raw.url.clone(),
                         path: dest.clone(),
@@ -142,10 +125,7 @@ impl Installer {
         }
         for (link, target) in links {
             if !link_stays_inside(&root, &link, &target) {
-                return Err(AssetsError::Metadata(format!(
-                    "runtime link {} escapes the runtime",
-                    link.display()
-                )));
+                return Err(AssetsError::Metadata(format!("runtime link {} escapes the runtime", link.display())));
             }
             create_link(&link, &target)?;
         }
@@ -209,21 +189,9 @@ mod tests {
     #[test]
     fn links_cannot_escape() {
         let root = Path::new("/rt/jre");
-        assert!(link_stays_inside(
-            root,
-            Path::new("/rt/jre/lib/a.so"),
-            "../bin/b.so"
-        ));
-        assert!(!link_stays_inside(
-            root,
-            Path::new("/rt/jre/lib/a.so"),
-            "../../../etc/passwd"
-        ));
-        assert!(!link_stays_inside(
-            root,
-            Path::new("/rt/jre/a"),
-            "/etc/passwd"
-        ));
+        assert!(link_stays_inside(root, Path::new("/rt/jre/lib/a.so"), "../bin/b.so"));
+        assert!(!link_stays_inside(root, Path::new("/rt/jre/lib/a.so"), "../../../etc/passwd"));
+        assert!(!link_stays_inside(root, Path::new("/rt/jre/a"), "/etc/passwd"));
     }
 
     #[tokio::test]
@@ -253,14 +221,9 @@ mod tests {
             .await;
 
         let dir = tempfile::tempdir().unwrap();
-        let mut installer = Installer::new(
-            DataDir::at(dir.path()),
-            Downloader::new(http_client_builder().build().unwrap()),
-        );
-        installer.platform = Platform {
-            os: Os::Linux,
-            arch: "x86_64",
-        };
+        let mut installer =
+            Installer::new(DataDir::at(dir.path()), Downloader::new(http_client_builder().build().unwrap()));
+        installer.platform = Platform { os: Os::Linux, arch: "x86_64" };
         let exe = installer
             .install_java(
                 &format!("{}/all.json", server.uri()),
@@ -275,10 +238,7 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(
-                std::fs::metadata(&exe).unwrap().permissions().mode() & 0o111,
-                0o111
-            );
+            assert_eq!(std::fs::metadata(&exe).unwrap().permissions().mode() & 0o111, 0o111);
             let alias = dir.path().join("runtimes/jre-legacy/bin/java-alias");
             assert_eq!(std::fs::read(alias).unwrap(), java);
         }

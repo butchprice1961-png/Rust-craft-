@@ -57,10 +57,7 @@ pub(crate) async fn authorize_interactive(
             ("prompt", "select_account"),
         ],
     )
-    .map_err(|e| AuthError::Protocol {
-        stage: "sign-in URL",
-        detail: e.to_string(),
-    })?;
+    .map_err(|e| AuthError::Protocol { stage: "sign-in URL", detail: e.to_string() })?;
     on_url(url.as_str());
 
     let code = tokio::select! {
@@ -86,19 +83,12 @@ pub(crate) async fn refresh(
     cfg: &AuthConfig,
     refresh_token: &Secret,
 ) -> Result<MsTokens, AuthError> {
-    token_request(
-        http,
-        cfg,
-        &[
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token.expose()),
-        ],
-    )
-    .await
-    .map_err(|e| match e {
-        AuthError::OAuth { error, .. } if error == "invalid_grant" => AuthError::SessionExpired,
-        other => other,
-    })
+    token_request(http, cfg, &[("grant_type", "refresh_token"), ("refresh_token", refresh_token.expose())])
+        .await
+        .map_err(|e| match e {
+            AuthError::OAuth { error, .. } if error == "invalid_grant" => AuthError::SessionExpired,
+            other => other,
+        })
 }
 
 #[derive(Deserialize)]
@@ -126,43 +116,26 @@ async fn token_request(
         .form(&form)
         .send()
         .await
-        .map_err(|source| AuthError::Network {
-            stage: STAGE,
-            source,
-        })?;
+        .map_err(|source| AuthError::Network { stage: STAGE, source })?;
     let status = response.status();
-    let body = response.text().await.map_err(|source| AuthError::Network {
-        stage: STAGE,
-        source,
-    })?;
+    let body = response.text().await.map_err(|source| AuthError::Network { stage: STAGE, source })?;
     if !status.is_success() {
         return Err(match serde_json::from_str::<TokenError>(&body) {
             Ok(e) => AuthError::OAuth {
                 error: e.error,
                 // Descriptions are multi-line with trace ids; keep the first line.
-                description: e
-                    .error_description
-                    .map(|d| summarize(d.lines().next().unwrap_or_default())),
+                description: e.error_description.map(|d| summarize(d.lines().next().unwrap_or_default())),
             },
-            Err(_) => AuthError::Http {
-                stage: STAGE,
-                status: status.as_u16(),
-                body: summarize(&body),
-            },
+            Err(_) => AuthError::Http { stage: STAGE, status: status.as_u16(), body: summarize(&body) },
         });
     }
-    let tokens: TokenResponse = serde_json::from_str(&body).map_err(|e| AuthError::Protocol {
-        stage: STAGE,
-        detail: e.to_string(),
-    })?;
+    let tokens: TokenResponse =
+        serde_json::from_str(&body).map_err(|e| AuthError::Protocol { stage: STAGE, detail: e.to_string() })?;
     let refresh_token = tokens.refresh_token.ok_or(AuthError::Protocol {
         stage: STAGE,
         detail: "no refresh token (offline_access scope missing)".into(),
     })?;
-    Ok(MsTokens {
-        access_token: Secret::new(tokens.access_token),
-        refresh_token: Secret::new(refresh_token),
-    })
+    Ok(MsTokens { access_token: Secret::new(tokens.access_token), refresh_token: Secret::new(refresh_token) })
 }
 
 /// Serves the loopback redirect until a request carrying our `state`
@@ -171,9 +144,7 @@ async fn token_request(
 async fn wait_for_redirect(listener: &TcpListener, state: &str) -> Result<String, AuthError> {
     loop {
         let (mut stream, _) = listener.accept().await?;
-        let Ok(Some(target)) =
-            tokio::time::timeout(Duration::from_secs(5), read_target(&mut stream)).await
-        else {
+        let Ok(Some(target)) = tokio::time::timeout(Duration::from_secs(5), read_target(&mut stream)).await else {
             continue;
         };
         let Ok(url) = url::Url::parse(&format!("http://localhost{target}")) else {
@@ -190,10 +161,7 @@ async fn wait_for_redirect(listener: &TcpListener, state: &str) -> Result<String
             return Err(if error == "access_denied" {
                 AuthError::Denied
             } else {
-                AuthError::OAuth {
-                    error: error.clone(),
-                    description: params.get("error_description").cloned(),
-                }
+                AuthError::OAuth { error: error.clone(), description: params.get("error_description").cloned() }
             });
         }
         if let Some(code) = params.get("code") {
@@ -223,15 +191,9 @@ async fn read_target(stream: &mut TcpStream) -> Option<String> {
 
 async fn respond(stream: &mut TcpStream, status: &str, ok: bool) {
     let (title, text) = if ok {
-        (
-            "Signed in",
-            "You are signed in to RustCraft. You can close this tab.",
-        )
+        ("Signed in", "You are signed in to RustCraft. You can close this tab.")
     } else {
-        (
-            "Sign-in not completed",
-            "RustCraft did not receive a valid sign-in. Return to RustCraft and try again.",
-        )
+        ("Sign-in not completed", "RustCraft did not receive a valid sign-in. Return to RustCraft and try again.")
     };
     let body = format!(
         "<!doctype html><meta charset=utf-8><title>{title}</title>\

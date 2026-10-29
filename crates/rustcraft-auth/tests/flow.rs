@@ -3,9 +3,7 @@
 
 use std::time::Duration;
 
-use rustcraft_auth::{
-    Accounts, AuthConfig, AuthError, Authenticator, Endpoints, MemoryStore, SecretStore, XboxIssue,
-};
+use rustcraft_auth::{Accounts, AuthConfig, AuthError, Authenticator, Endpoints, MemoryStore, SecretStore, XboxIssue};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use wiremock::matchers::{body_string_contains, header, method, path};
@@ -74,9 +72,15 @@ async fn services_ok(server: &MockServer) {
         "skins": [ { "id": "1", "state": "ACTIVE", "url": "https://textures.minecraft.net/texture/abc", "variant": "CLASSIC" } ],
         "capes": [] }))
     .await;
-    mount(server, "GET", "/attributes", 200, json!({
+    mount(
+        server,
+        "GET",
+        "/attributes",
+        200,
+        json!({
         "privileges": { "onlineChat": { "enabled": false }, "multiplayerServer": { "enabled": true } },
-        "banStatus": { "bannedScopes": {} } }))
+        "banStatus": { "bannedScopes": {} } }),
+    )
     .await;
 }
 
@@ -106,17 +110,9 @@ fn browser(query: &'static str) -> impl FnOnce(&str) {
         let state = q["state"].clone();
         tokio::spawn(async move {
             let http = reqwest::Client::new();
-            let forged = http
-                .get(format!("{redirect}/?code=evil&state=wrong"))
-                .send()
-                .await
-                .unwrap();
+            let forged = http.get(format!("{redirect}/?code=evil&state=wrong")).send().await.unwrap();
             assert_eq!(forged.status(), 400);
-            let real = http
-                .get(format!("{redirect}/?{query}&state={state}"))
-                .send()
-                .await
-                .unwrap();
+            let real = http.get(format!("{redirect}/?{query}&state={state}")).send().await.unwrap();
             assert_eq!(real.status(), 200);
         });
     }
@@ -143,10 +139,7 @@ async fn sign_in_store_and_renew() {
     services_ok(&server).await;
     let auth = Authenticator::new(config(&server));
 
-    let signed_in = auth
-        .sign_in(browser("code=good-code"), &CancellationToken::new())
-        .await
-        .unwrap();
+    let signed_in = auth.sign_in(browser("code=good-code"), &CancellationToken::new()).await.unwrap();
     let s = &signed_in.session;
     assert_eq!(s.profile.name, "Notch");
     assert_eq!(s.profile.id, PROFILE_ID);
@@ -164,21 +157,9 @@ async fn sign_in_store_and_renew() {
     let mut accounts = Accounts::load(file.clone(), Box::new(SharedStore(store.clone())));
     assert_eq!(accounts.add(signed_in).unwrap(), None);
     let on_disk = std::fs::read_to_string(&file).unwrap();
-    assert!(
-        on_disk.contains("Notch")
-            && !on_disk.contains("ms-refresh")
-            && !on_disk.contains("mc-access")
-    );
+    assert!(on_disk.contains("Notch") && !on_disk.contains("ms-refresh") && !on_disk.contains("mc-access"));
     assert_eq!(accounts.active().unwrap().id, PROFILE_ID);
-    assert_eq!(
-        accounts
-            .session(&auth, PROFILE_ID)
-            .await
-            .unwrap()
-            .access_token
-            .expose(),
-        "mc-access"
-    );
+    assert_eq!(accounts.session(&auth, PROFILE_ID).await.unwrap().access_token.expose(), "mc-access");
 
     // Next launch: no cached session, so the stored refresh token renews it.
     token_ok(&server, "refresh_token").await;
@@ -187,53 +168,37 @@ async fn sign_in_store_and_renew() {
     let renewed = accounts.session(&auth, PROFILE_ID).await.unwrap();
     assert_eq!(renewed.profile.name, "Notch");
     assert_eq!(
-        store
-            .get("msa-refresh:069a79f444e94726a5befca90e38aaf5")
-            .unwrap()
-            .unwrap()
-            .expose(),
+        store.get("msa-refresh:069a79f444e94726a5befca90e38aaf5").unwrap().unwrap().expose(),
         "ms-refresh-refresh_token"
     );
 
     // Sign out removes the credential and the record.
     accounts.remove(PROFILE_ID).unwrap();
     assert!(accounts.records().is_empty());
-    assert!(
-        store
-            .get(&format!("msa-refresh:{PROFILE_ID}"))
-            .unwrap()
-            .is_none()
-    );
+    assert!(store.get(&format!("msa-refresh:{PROFILE_ID}")).unwrap().is_none());
 }
 
 #[tokio::test]
 async fn expired_refresh_token_requires_new_sign_in() {
     install_crypto();
     let server = MockServer::start().await;
-    mount(&server, "POST", "/token", 400, json!({
-        "error": "invalid_grant", "error_description": "AADSTS70000: The refresh token has expired.\r\nTrace ID: x" }))
+    mount(
+        &server,
+        "POST",
+        "/token",
+        400,
+        json!({
+        "error": "invalid_grant", "error_description": "AADSTS70000: The refresh token has expired.\r\nTrace ID: x" }),
+    )
     .await;
     let auth = Authenticator::new(config(&server));
     let dir = tempfile::tempdir().unwrap();
     let store = std::sync::Arc::new(MemoryStore::default());
-    store
-        .set(
-            &format!("msa-refresh:{PROFILE_ID}"),
-            &rustcraft_auth::Secret::new("old"),
-        )
-        .unwrap();
-    let mut accounts = Accounts::load(
-        dir.path().join("a.toml"),
-        Box::new(SharedStore(store.clone())),
-    );
+    store.set(&format!("msa-refresh:{PROFILE_ID}"), &rustcraft_auth::Secret::new("old")).unwrap();
+    let mut accounts = Accounts::load(dir.path().join("a.toml"), Box::new(SharedStore(store.clone())));
     let err = accounts.session(&auth, PROFILE_ID).await.unwrap_err();
     assert!(matches!(err, AuthError::SessionExpired), "{err}");
-    assert!(
-        store
-            .get(&format!("msa-refresh:{PROFILE_ID}"))
-            .unwrap()
-            .is_none()
-    );
+    assert!(store.get(&format!("msa-refresh:{PROFILE_ID}")).unwrap().is_none());
 }
 
 #[tokio::test]
@@ -242,10 +207,7 @@ async fn user_declining_in_browser_is_reported() {
     let server = MockServer::start().await;
     let auth = Authenticator::new(config(&server));
     let err = auth
-        .sign_in(
-            browser("error=access_denied&error_description=The+user+declined"),
-            &CancellationToken::new(),
-        )
+        .sign_in(browser("error=access_denied&error_description=The+user+declined"), &CancellationToken::new())
         .await
         .unwrap_err();
     assert!(matches!(err, AuthError::Denied), "{err}");
@@ -258,10 +220,7 @@ async fn cancel_stops_waiting_for_browser() {
     let auth = Authenticator::new(config(&server));
     let cancel = CancellationToken::new();
     let c = cancel.clone();
-    let err = auth
-        .sign_in(move |_| c.cancel(), &cancel)
-        .await
-        .unwrap_err();
+    let err = auth.sign_in(move |_| c.cancel(), &cancel).await.unwrap_err();
     assert!(matches!(err, AuthError::Cancelled));
 }
 
@@ -281,82 +240,37 @@ async fn account_problems_map_to_clear_errors() {
     )
     .await;
     mount(&server, "POST", "/xsts", 401, json!({ "Identity": "0", "XErr": 2148916233u64, "Message": "", "Redirect": "https://start.ui.xboxlive.com/CreateAccount" })).await;
-    let err = Authenticator::new(config(&server))
-        .refresh(&rustcraft_auth::Secret::new("rt"))
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(err, AuthError::Xbox(XboxIssue::NoXboxProfile)),
-        "{err}"
-    );
+    let err = Authenticator::new(config(&server)).refresh(&rustcraft_auth::Secret::new("rt")).await.unwrap_err();
+    assert!(matches!(err, AuthError::Xbox(XboxIssue::NoXboxProfile)), "{err}");
     assert!(err.to_string().contains("xbox.com"));
 
     // Azure app not approved for Minecraft services.
     let server = MockServer::start().await;
     token_ok(&server, "refresh_token").await;
+    mount(&server, "POST", "/xbl", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } })).await;
+    mount(&server, "POST", "/xsts", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } })).await;
     mount(
         &server,
         "POST",
-        "/xbl",
-        200,
-        json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
+        "/mc-login",
+        403,
+        json!({ "path": "/authentication/login_with_xbox",
+        "errorMessage": "Invalid app registration, see https://aka.ms/AppRegInfo for more information" }),
     )
     .await;
-    mount(
-        &server,
-        "POST",
-        "/xsts",
-        200,
-        json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
-    )
-    .await;
-    mount(&server, "POST", "/mc-login", 403, json!({ "path": "/authentication/login_with_xbox",
-        "errorMessage": "Invalid app registration, see https://aka.ms/AppRegInfo for more information" })).await;
-    let err = Authenticator::new(config(&server))
-        .refresh(&rustcraft_auth::Secret::new("rt"))
-        .await
-        .unwrap_err();
+    let err = Authenticator::new(config(&server)).refresh(&rustcraft_auth::Secret::new("rt")).await.unwrap_err();
     assert!(matches!(err, AuthError::AppNotApproved), "{err}");
 
     // Does not own the game; then owns it but has no profile.
-    for (items, expect_not_owned) in [
-        (json!([]), true),
-        (json!([ { "name": "game_minecraft" } ]), false),
-    ] {
+    for (items, expect_not_owned) in [(json!([]), true), (json!([ { "name": "game_minecraft" } ]), false)] {
         let server = MockServer::start().await;
         token_ok(&server, "refresh_token").await;
-        mount(
-            &server,
-            "POST",
-            "/xbl",
-            200,
-            json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
-        )
-        .await;
-        mount(
-            &server,
-            "POST",
-            "/xsts",
-            200,
-            json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
-        )
-        .await;
-        mount(
-            &server,
-            "POST",
-            "/mc-login",
-            200,
-            json!({ "access_token": "mc", "expires_in": 86400 }),
-        )
-        .await;
-        mount(
-            &server,
-            "GET",
-            "/entitlements",
-            200,
-            json!({ "items": items }),
-        )
-        .await;
+        mount(&server, "POST", "/xbl", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }))
+            .await;
+        mount(&server, "POST", "/xsts", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }))
+            .await;
+        mount(&server, "POST", "/mc-login", 200, json!({ "access_token": "mc", "expires_in": 86400 })).await;
+        mount(&server, "GET", "/entitlements", 200, json!({ "items": items })).await;
         mount(
             &server,
             "GET",
@@ -365,10 +279,7 @@ async fn account_problems_map_to_clear_errors() {
             json!({ "path": "/minecraft/profile", "errorType": "NOT_FOUND", "error": "NOT_FOUND" }),
         )
         .await;
-        let err = Authenticator::new(config(&server))
-            .refresh(&rustcraft_auth::Secret::new("rt"))
-            .await
-            .unwrap_err();
+        let err = Authenticator::new(config(&server)).refresh(&rustcraft_auth::Secret::new("rt")).await.unwrap_err();
         if expect_not_owned {
             assert!(matches!(err, AuthError::NotOwned), "{err}");
         } else {
@@ -382,61 +293,17 @@ async fn multiplayer_ban_is_surfaced() {
     install_crypto();
     let server = MockServer::start().await;
     token_ok(&server, "refresh_token").await;
-    mount(
-        &server,
-        "POST",
-        "/xbl",
-        200,
-        json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
-    )
-    .await;
-    mount(
-        &server,
-        "POST",
-        "/xsts",
-        200,
-        json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } }),
-    )
-    .await;
-    mount(
-        &server,
-        "POST",
-        "/mc-login",
-        200,
-        json!({ "access_token": "mc", "expires_in": 86400 }),
-    )
-    .await;
-    mount(
-        &server,
-        "GET",
-        "/entitlements",
-        200,
-        json!({ "items": [ { "name": "product_minecraft" } ] }),
-    )
-    .await;
-    mount(
-        &server,
-        "GET",
-        "/profile",
-        200,
-        json!({ "id": PROFILE_ID, "name": "Notch" }),
-    )
-    .await;
+    mount(&server, "POST", "/xbl", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } })).await;
+    mount(&server, "POST", "/xsts", 200, json!({ "Token": "x", "DisplayClaims": { "xui": [ { "uhs": "u" } ] } })).await;
+    mount(&server, "POST", "/mc-login", 200, json!({ "access_token": "mc", "expires_in": 86400 })).await;
+    mount(&server, "GET", "/entitlements", 200, json!({ "items": [ { "name": "product_minecraft" } ] })).await;
+    mount(&server, "GET", "/profile", 200, json!({ "id": PROFILE_ID, "name": "Notch" })).await;
     mount(&server, "GET", "/attributes", 200, json!({
         "privileges": { "multiplayerServer": { "enabled": true } },
         "banStatus": { "bannedScopes": { "MULTIPLAYER": { "banId": "b", "expires": 0, "reason": "false_reporting", "reasonMessage": "Account suspended" } } } }))
     .await;
-    let s = Authenticator::new(config(&server))
-        .refresh(&rustcraft_auth::Secret::new("rt"))
-        .await
-        .unwrap()
-        .session;
-    assert!(
-        s.multiplayer
-            .blocked_reason()
-            .unwrap()
-            .contains("Account suspended")
-    );
+    let s = Authenticator::new(config(&server)).refresh(&rustcraft_auth::Secret::new("rt")).await.unwrap().session;
+    assert!(s.multiplayer.blocked_reason().unwrap().contains("Account suspended"));
 }
 
 /// Lets a test inspect the store after handing it to `Accounts`.

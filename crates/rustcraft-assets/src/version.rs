@@ -215,10 +215,7 @@ impl Rule {
                 return false;
             }
         }
-        self.features
-            .iter()
-            .flatten()
-            .all(|(name, want)| features.contains(&name.as_str()) == *want)
+        self.features.iter().flatten().all(|(name, want)| features.contains(&name.as_str()) == *want)
     }
 }
 
@@ -228,10 +225,7 @@ pub fn rules_allow(rules: &[Rule], platform: Platform, features: &[&str]) -> boo
     if rules.is_empty() {
         return true;
     }
-    rules
-        .iter()
-        .rfind(|r| r.matches(platform, features))
-        .is_some_and(|r| r.action == RuleAction::Allow)
+    rules.iter().rfind(|r| r.matches(platform, features)).is_some_and(|r| r.action == RuleAction::Allow)
 }
 
 impl VersionJson {
@@ -258,11 +252,7 @@ impl VersionJson {
             minecraft_arguments: self.minecraft_arguments.or(parent.minecraft_arguments),
             arguments,
             asset_index: self.asset_index.or(parent.asset_index),
-            downloads: if self.downloads.is_empty() {
-                parent.downloads
-            } else {
-                self.downloads
-            },
+            downloads: if self.downloads.is_empty() { parent.downloads } else { self.downloads },
             libraries,
             java_version: self.java_version.or(parent.java_version),
             logging: self.logging.or(parent.logging),
@@ -298,13 +288,7 @@ impl<'a> MavenCoord<'a> {
         if parts.next().is_some() || [group, artifact, version].contains(&"") {
             return None;
         }
-        Some(Self {
-            group,
-            artifact,
-            version,
-            classifier,
-            ext,
-        })
+        Some(Self { group, artifact, version, classifier, ext })
     }
 
     pub fn path(&self) -> String {
@@ -321,20 +305,12 @@ impl<'a> MavenCoord<'a> {
     }
 
     fn with_classifier(&self, classifier: &'a str) -> Self {
-        Self {
-            classifier: Some(classifier),
-            ..self.clone()
-        }
+        Self { classifier: Some(classifier), ..self.clone() }
     }
 
     /// Identity used to de-duplicate libraries across a profile and its parent.
     fn key(&self) -> String {
-        format!(
-            "{}:{}:{}",
-            self.group,
-            self.artifact,
-            self.classifier.unwrap_or("")
-        )
+        format!("{}:{}:{}", self.group, self.artifact, self.classifier.unwrap_or(""))
     }
 }
 
@@ -404,20 +380,14 @@ pub fn resolve_libraries(
             None => computed(&native_coord),
         };
         let file = to_download(&artifact, &native_coord, root)?;
-        out.natives.push(NativeJar {
-            path: file.path.clone(),
-            exclude: lib.extract.clone().unwrap_or_default().exclude,
-        });
+        out.natives
+            .push(NativeJar { path: file.path.clone(), exclude: lib.extract.clone().unwrap_or_default().exclude });
         out.downloads.push(file);
     }
     Ok(out)
 }
 
-fn to_download(
-    artifact: &Artifact,
-    coord: &MavenCoord,
-    root: &Path,
-) -> Result<FileDownload, AssetsError> {
+fn to_download(artifact: &Artifact, coord: &MavenCoord, root: &Path) -> Result<FileDownload, AssetsError> {
     let rel = artifact.path.clone().unwrap_or_else(|| coord.path());
     Ok(FileDownload {
         url: artifact.url.clone(),
@@ -439,18 +409,9 @@ mod tests {
         serde_json::from_str(include_str!("../tests/fixtures/1.21.4.json")).unwrap()
     }
 
-    const LINUX: Platform = Platform {
-        os: Os::Linux,
-        arch: "x86_64",
-    };
-    const MAC_ARM: Platform = Platform {
-        os: Os::MacOs,
-        arch: "arm64",
-    };
-    const WIN32: Platform = Platform {
-        os: Os::Windows,
-        arch: "x86",
-    };
+    const LINUX: Platform = Platform { os: Os::Linux, arch: "x86_64" };
+    const MAC_ARM: Platform = Platform { os: Os::MacOs, arch: "arm64" };
+    const WIN32: Platform = Platform { os: Os::Windows, arch: "x86" };
 
     #[test]
     fn maven_paths() {
@@ -459,33 +420,25 @@ mod tests {
             c.with_classifier("natives-linux").path(),
             "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar"
         );
-        assert_eq!(
-            MavenCoord::parse("a.b:c:1@zip").unwrap().path(),
-            "a/b/c/1/c-1.zip"
-        );
+        assert_eq!(MavenCoord::parse("a.b:c:1@zip").unwrap().path(), "a/b/c/1/c-1.zip");
         assert!(MavenCoord::parse("a:b").is_none());
         assert!(MavenCoord::parse("a:b:c:d:e").is_none());
     }
 
     #[test]
     fn rule_semantics() {
-        let rules: Vec<Rule> = serde_json::from_str(
-            r#"[{"action":"allow"},{"action":"disallow","os":{"name":"osx"}}]"#,
-        )
-        .unwrap();
+        let rules: Vec<Rule> =
+            serde_json::from_str(r#"[{"action":"allow"},{"action":"disallow","os":{"name":"osx"}}]"#).unwrap();
         assert!(rules_allow(&rules, LINUX, &[]));
         assert!(!rules_allow(&rules, MAC_ARM, &[]));
-        let only_mac: Vec<Rule> =
-            serde_json::from_str(r#"[{"action":"allow","os":{"name":"osx"}}]"#).unwrap();
+        let only_mac: Vec<Rule> = serde_json::from_str(r#"[{"action":"allow","os":{"name":"osx"}}]"#).unwrap();
         assert!(!rules_allow(&only_mac, LINUX, &[]));
         assert!(rules_allow(&only_mac, MAC_ARM, &[]));
-        let x86: Vec<Rule> =
-            serde_json::from_str(r#"[{"action":"allow","os":{"arch":"x86"}}]"#).unwrap();
+        let x86: Vec<Rule> = serde_json::from_str(r#"[{"action":"allow","os":{"arch":"x86"}}]"#).unwrap();
         assert!(rules_allow(&x86, WIN32, &[]));
         assert!(!rules_allow(&x86, LINUX, &[]));
         let feature: Vec<Rule> =
-            serde_json::from_str(r#"[{"action":"allow","features":{"is_demo_user":true}}]"#)
-                .unwrap();
+            serde_json::from_str(r#"[{"action":"allow","features":{"is_demo_user":true}}]"#).unwrap();
         assert!(!rules_allow(&feature, LINUX, &[]));
         assert!(rules_allow(&feature, LINUX, &["is_demo_user"]));
     }
@@ -495,15 +448,8 @@ mod tests {
         let v = legacy();
         let root = Path::new("/libs");
         let linux = resolve_libraries(&v.libraries, LINUX, root).unwrap();
-        let names: Vec<_> = linux
-            .classpath
-            .iter()
-            .map(|p| p.file_name().unwrap().to_str().unwrap())
-            .collect();
-        assert_eq!(
-            names,
-            ["lwjgl-2.9.4-nightly-20150209.jar", "gson-2.2.4.jar"]
-        );
+        let names: Vec<_> = linux.classpath.iter().map(|p| p.file_name().unwrap().to_str().unwrap()).collect();
+        assert_eq!(names, ["lwjgl-2.9.4-nightly-20150209.jar", "gson-2.2.4.jar"]);
         assert_eq!(linux.natives.len(), 1);
         assert!(linux.natives[0].path.ends_with(
             "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar"
@@ -512,34 +458,16 @@ mod tests {
         assert_eq!(linux.downloads.len(), 3);
 
         let mac = resolve_libraries(&v.libraries, MAC_ARM, root).unwrap();
-        let names: Vec<_> = mac
-            .classpath
-            .iter()
-            .map(|p| p.file_name().unwrap().to_str().unwrap())
-            .collect();
-        assert_eq!(
-            names,
-            ["lwjgl-2.9.2-nightly-20140822.jar", "gson-2.2.4.jar"]
-        );
+        let names: Vec<_> = mac.classpath.iter().map(|p| p.file_name().unwrap().to_str().unwrap()).collect();
+        assert_eq!(names, ["lwjgl-2.9.2-nightly-20140822.jar", "gson-2.2.4.jar"]);
         assert_eq!(mac.natives.len(), 1);
-        assert!(
-            mac.natives[0]
-                .path
-                .ends_with("twitch-platform-6.5-natives-osx.jar")
-        );
+        assert!(mac.natives[0].path.ends_with("twitch-platform-6.5-natives-osx.jar"));
 
         let win = resolve_libraries(&v.libraries, WIN32, root).unwrap();
-        let natives: Vec<_> = win
-            .natives
-            .iter()
-            .map(|n| n.path.file_name().unwrap().to_str().unwrap())
-            .collect();
+        let natives: Vec<_> = win.natives.iter().map(|n| n.path.file_name().unwrap().to_str().unwrap()).collect();
         assert_eq!(
             natives,
-            [
-                "lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar",
-                "twitch-platform-6.5-natives-windows-32.jar"
-            ]
+            ["lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar", "twitch-platform-6.5-natives-windows-32.jar"]
         );
     }
 
@@ -547,11 +475,7 @@ mod tests {
     fn modern_libraries_put_natives_on_classpath() {
         let v = modern();
         let r = resolve_libraries(&v.libraries, LINUX, Path::new("/libs")).unwrap();
-        let names: Vec<_> = r
-            .classpath
-            .iter()
-            .map(|p| p.file_name().unwrap().to_str().unwrap())
-            .collect();
+        let names: Vec<_> = r.classpath.iter().map(|p| p.file_name().unwrap().to_str().unwrap()).collect();
         assert_eq!(names, ["lwjgl-3.3.3.jar", "lwjgl-3.3.3-natives-linux.jar"]);
         assert!(r.natives.is_empty());
         let mac = resolve_libraries(&v.libraries, MAC_ARM, Path::new("/libs")).unwrap();
@@ -571,16 +495,12 @@ mod tests {
     #[test]
     fn loader_profile_merges_onto_parent() {
         let profile: VersionJson =
-            serde_json::from_str(include_str!("../tests/fixtures/fabric-loader-1.21.4.json"))
-                .unwrap();
+            serde_json::from_str(include_str!("../tests/fixtures/fabric-loader-1.21.4.json")).unwrap();
         assert_eq!(profile.inherits_from.as_deref(), Some("1.21.4"));
         let merged = profile.merged_onto(modern());
         assert_eq!(merged.id, "fabric-loader-0.16.10-1.21.4");
         assert_eq!(merged.jar_id(), "1.21.4");
-        assert_eq!(
-            merged.main_class.as_deref(),
-            Some("net.fabricmc.loader.impl.launch.knot.KnotClient")
-        );
+        assert_eq!(merged.main_class.as_deref(), Some("net.fabricmc.loader.impl.launch.knot.KnotClient"));
         assert_eq!(merged.asset_index.as_ref().unwrap().id, "19");
         assert_eq!(merged.java_major(), 21);
         let r = resolve_libraries(&merged.libraries, LINUX, Path::new("/libs")).unwrap();
@@ -589,10 +509,7 @@ mod tests {
             first.url,
             "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.16.10/fabric-loader-0.16.10.jar"
         );
-        assert_eq!(
-            first.sha1.as_deref(),
-            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        );
+        assert_eq!(first.sha1.as_deref(), Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
         // Profile JVM args are appended after the parent's.
         let jvm = &merged.arguments.as_ref().unwrap().jvm;
         assert!(

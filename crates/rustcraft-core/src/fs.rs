@@ -15,10 +15,7 @@ pub fn safe_join(root: &Path, untrusted: &str) -> io::Result<PathBuf> {
         && !untrusted.contains(['\\', ':', '\0'])
         && rel.components().all(|c| matches!(c, Component::Normal(_)));
     if !plain {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("unsafe path {untrusted:?}"),
-        ));
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("unsafe path {untrusted:?}")));
     }
     Ok(root.join(rel))
 }
@@ -26,9 +23,7 @@ pub fn safe_join(root: &Path, untrusted: &str) -> io::Result<PathBuf> {
 /// Writes via a sibling temp file and rename, so readers see either the old
 /// or the new contents, never a torn file.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no parent"))?;
+    let dir = path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no parent"))?;
     std::fs::create_dir_all(dir)?;
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
@@ -76,10 +71,7 @@ fn recover<T: Default>(path: &Path, error: String) -> (T, LoadOutcome) {
     if let Err(e) = std::fs::rename(path, &backup) {
         tracing::warn!("could not move broken config {}: {e}", path.display());
     }
-    tracing::warn!(
-        "config {} was invalid ({error}); using defaults",
-        path.display()
-    );
+    tracing::warn!("config {} was invalid ({error}); using defaults", path.display());
     (T::default(), LoadOutcome::Recovered { backup, error })
 }
 
@@ -89,10 +81,7 @@ pub fn save_toml<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
 }
 
 pub fn unix_time() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -103,20 +92,8 @@ mod tests {
     #[test]
     fn safe_join_rejects_escapes() {
         let root = Path::new("/data");
-        assert_eq!(
-            safe_join(root, "org/lwjgl/lwjgl.jar").unwrap(),
-            root.join("org/lwjgl/lwjgl.jar")
-        );
-        for bad in [
-            "",
-            "../x",
-            "a/../../x",
-            "/etc/passwd",
-            "C:\\x",
-            "a\\..\\b",
-            "a:stream",
-            "./a",
-        ] {
+        assert_eq!(safe_join(root, "org/lwjgl/lwjgl.jar").unwrap(), root.join("org/lwjgl/lwjgl.jar"));
+        for bad in ["", "../x", "a/../../x", "/etc/passwd", "C:\\x", "a\\..\\b", "a:stream", "./a"] {
             assert!(safe_join(root, bad).is_err(), "{bad} accepted");
         }
     }
@@ -135,26 +112,15 @@ mod tests {
         let (cfg, outcome) = load_toml_or_default::<Cfg>(&path);
         assert_eq!((cfg, outcome), (Cfg::default(), LoadOutcome::Missing));
 
-        let good = Cfg {
-            name: "a".into(),
-            memory_mb: 2048,
-        };
+        let good = Cfg { name: "a".into(), memory_mb: 2048 };
         save_toml(&path, &good).unwrap();
-        assert_eq!(
-            load_toml_or_default::<Cfg>(&path),
-            (good, LoadOutcome::Loaded)
-        );
+        assert_eq!(load_toml_or_default::<Cfg>(&path), (good, LoadOutcome::Loaded));
 
         std::fs::write(&path, "memory_mb = \"lots\"").unwrap();
         let (cfg, outcome) = load_toml_or_default::<Cfg>(&path);
         assert_eq!(cfg, Cfg::default());
-        let LoadOutcome::Recovered { backup, .. } = outcome else {
-            panic!("{outcome:?}")
-        };
-        assert_eq!(
-            std::fs::read_to_string(backup).unwrap(),
-            "memory_mb = \"lots\""
-        );
+        let LoadOutcome::Recovered { backup, .. } = outcome else { panic!("{outcome:?}") };
+        assert_eq!(std::fs::read_to_string(backup).unwrap(), "memory_mb = \"lots\"");
         assert!(!path.exists());
     }
 }

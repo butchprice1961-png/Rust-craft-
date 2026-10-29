@@ -18,8 +18,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let opts =
-        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for (name, data) in entries {
         out.start_file(*name, opts).unwrap();
         out.write_all(data).unwrap();
@@ -28,10 +27,7 @@ fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 async fn serve(server: &MockServer, at: &str, body: Vec<u8>) {
-    Mock::given(path(at))
-        .respond_with(ResponseTemplate::new(200).set_body_bytes(body))
-        .mount(server)
-        .await;
+    Mock::given(path(at)).respond_with(ResponseTemplate::new(200).set_body_bytes(body)).mount(server).await;
 }
 
 #[tokio::test]
@@ -42,11 +38,7 @@ async fn installs_then_relaunches_offline() {
 
     let jar = b"client jar".to_vec();
     let lib = b"gson".to_vec();
-    let natives = zip(&[
-        ("liblwjgl.so", b"elf"),
-        ("META-INF/MANIFEST.MF", b"skip me"),
-        ("../../escape.so", b"evil"),
-    ]);
+    let natives = zip(&[("liblwjgl.so", b"elf"), ("META-INF/MANIFEST.MF", b"skip me"), ("../../escape.so", b"evil")]);
     let sound = b"ogg data".to_vec();
     let index = json!({ "objects": {
         "minecraft/sounds/a.ogg": { "hash": sha1_hex(&sound), "size": sound.len() },
@@ -89,80 +81,41 @@ async fn installs_then_relaunches_offline() {
     serve(&server, "/client.jar", jar.clone()).await;
     serve(&server, "/gson.jar", lib).await;
     serve(&server, "/natives.jar", natives).await;
-    serve(
-        &server,
-        &format!("/res/{}/{}", &sha1_hex(&sound)[..2], sha1_hex(&sound)),
-        sound.clone(),
-    )
-    .await;
+    serve(&server, &format!("/res/{}/{}", &sha1_hex(&sound)[..2], sha1_hex(&sound)), sound.clone()).await;
 
     let tmp = tempfile::tempdir().unwrap();
     let dirs = DataDir::at(tmp.path().join("data"));
     let mut installer = Installer::new(
         dirs.clone(),
-        Downloader::new(http_client_builder().build().unwrap())
-            .with_backoff(std::time::Duration::from_millis(1)),
+        Downloader::new(http_client_builder().build().unwrap()).with_backoff(std::time::Duration::from_millis(1)),
     );
-    installer.platform = Platform {
-        os: Os::Linux,
-        arch: "x86_64",
-    };
-    installer.endpoints = Endpoints {
-        manifest: format!("{uri}/manifest.json"),
-        resources: format!("{uri}/res"),
-    };
+    installer.platform = Platform { os: Os::Linux, arch: "x86_64" };
+    installer.endpoints = Endpoints { manifest: format!("{uri}/manifest.json"), resources: format!("{uri}/res") };
 
     let manifest = installer.manifest().await.unwrap();
     let version = installer.resolve("1.8.9", Some(&manifest)).await.unwrap();
     let progress = Arc::default();
-    let installed = installer
-        .install(&version, &progress, &CancellationToken::new())
-        .await
-        .unwrap();
+    let installed = installer.install(&version, &progress, &CancellationToken::new()).await.unwrap();
 
-    assert_eq!(
-        std::fs::read(dirs.root().join("versions/1.8.9/1.8.9.jar")).unwrap(),
-        jar
-    );
+    assert_eq!(std::fs::read(dirs.root().join("versions/1.8.9/1.8.9.jar")).unwrap(), jar);
     assert_eq!(installed.classpath.len(), 2);
     assert_eq!(installed.assets_index, "1.8");
-    assert_eq!(
-        std::fs::read(installed.natives_dir.join("liblwjgl.so")).unwrap(),
-        b"elf"
-    );
+    assert_eq!(std::fs::read(installed.natives_dir.join("liblwjgl.so")).unwrap(), b"elf");
     assert!(!installed.natives_dir.join("META-INF").exists());
     assert!(!tmp.path().join("escape.so").exists() && !dirs.root().join("escape.so").exists());
-    let object = dirs
-        .assets()
-        .join("objects")
-        .join(&sha1_hex(&sound)[..2])
-        .join(sha1_hex(&sound));
+    let object = dirs.assets().join("objects").join(&sha1_hex(&sound)[..2]).join(sha1_hex(&sound));
     assert_eq!(std::fs::read(object).unwrap(), sound);
-    assert_eq!(
-        progress.files_done.load(Ordering::Relaxed),
-        progress.files_total.load(Ordering::Relaxed)
-    );
+    assert_eq!(progress.files_done.load(Ordering::Relaxed), progress.files_total.load(Ordering::Relaxed));
     assert_eq!(progress.fraction(), 1.0);
 
     // Offline: no server. Cached metadata and verified files must suffice.
     drop(server);
     let manifest = installer.manifest().await.unwrap();
     let version = installer.resolve("1.8.9", Some(&manifest)).await.unwrap();
-    installer
-        .install(&version, &Arc::default(), &CancellationToken::new())
-        .await
-        .unwrap();
+    installer.install(&version, &Arc::default(), &CancellationToken::new()).await.unwrap();
 
     // A corrupted library is detected and, with no network, reported.
-    std::fs::write(
-        dirs.libraries()
-            .join("com/google/code/gson/gson/2.2.4/gson-2.2.4.jar"),
-        b"tampered",
-    )
-    .unwrap();
-    let err = installer
-        .install(&version, &Arc::default(), &CancellationToken::new())
-        .await
-        .unwrap_err();
+    std::fs::write(dirs.libraries().join("com/google/code/gson/gson/2.2.4/gson-2.2.4.jar"), b"tampered").unwrap();
+    let err = installer.install(&version, &Arc::default(), &CancellationToken::new()).await.unwrap_err();
     assert!(err.to_string().contains("gson.jar"), "{err}");
 }
