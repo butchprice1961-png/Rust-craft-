@@ -1,0 +1,58 @@
+{
+  "assetIndex": { "id": "1.8", "sha1": "1111111111111111111111111111111111111111", "size": 78494, "totalSize": 114885064, "url": "https://launchermeta.mojang.com/v1/packages/1111111111111111111111111111111111111111/1.8.json" },
+  "assets": "1.8",
+  "complianceLevel": 0,
+  "downloads": {
+    "client": { "sha1": "2222222222222222222222222222222222222222", "size": 8461484, "url": "https://launcher.mojang.com/v1/objects/2222222222222222222222222222222222222222/client.jar" }
+  },
+  "id": "1.8.9",
+  "javaVersion": { "component": "jre-legacy", "majorVersion": 8 },
+  "libraries": [
+    {
+      "downloads": { "artifact": { "path": "org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar", "sha1": "3333333333333333333333333333333333333333", "size": 1047168, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar" } },
+      "name": "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+      "rules": [ { "action": "allow" }, { "action": "disallow", "os": { "name": "osx" } } ]
+    },
+    {
+      "downloads": { "artifact": { "path": "org/lwjgl/lwjgl/lwjgl/2.9.2-nightly-20140822/lwjgl-2.9.2-nightly-20140822.jar", "sha1": "4444444444444444444444444444444444444444", "size": 1045632, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl/2.9.2-nightly-20140822/lwjgl-2.9.2-nightly-20140822.jar" } },
+      "name": "org.lwjgl.lwjgl:lwjgl:2.9.2-nightly-20140822",
+      "rules": [ { "action": "allow", "os": { "name": "osx" } } ]
+    },
+    {
+      "downloads": {
+        "classifiers": {
+          "natives-linux": { "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar", "sha1": "5555555555555555555555555555555555555555", "size": 578680, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar" },
+          "natives-osx": { "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar", "sha1": "6666666666666666666666666666666666666666", "size": 426822, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar" },
+          "natives-windows": { "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar", "sha1": "7777777777777777777777777777777777777777", "size": 613748, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar" }
+        }
+      },
+      "extract": { "exclude": [ "META-INF/" ] },
+      "name": "org.lwjgl.lwjgl:lwjgl-platform:2.9.4-nightly-20150209",
+      "natives": { "linux": "natives-linux", "osx": "natives-osx", "windows": "natives-windows" },
+      "rules": [ { "action": "allow" }, { "action": "disallow", "os": { "name": "osx" } } ]
+    },
+    {
+      "downloads": {
+        "classifiers": {
+          "natives-osx": { "path": "tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar", "sha1": "8888888888888888888888888888888888888888", "size": 455359, "url": "https://libraries.minecraft.net/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar" },
+          "natives-windows-32": { "path": "tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-32.jar", "sha1": "9999999999999999999999999999999999999999", "size": 474225, "url": "https://libraries.minecraft.net/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-32.jar" },
+          "natives-windows-64": { "path": "tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar", "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "size": 580098, "url": "https://libraries.minecraft.net/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar" }
+        }
+      },
+      "extract": { "exclude": [ "META-INF/" ] },
+      "name": "tv.twitch:twitch-platform:6.5",
+      "natives": { "linux": "natives-linux", "osx": "natives-osx", "windows": "natives-windows-${arch}" },
+      "rules": [ { "action": "allow" }, { "action": "disallow", "os": { "name": "linux" } } ]
+    },
+    {
+      "downloads": { "artifact": { "path": "com/google/code/gson/gson/2.2.4/gson-2.2.4.jar", "sha1": "a60a5e993c98c864010053cb901b7eab25306568", "size": 190432, "url": "https://libraries.minecraft.net/com/google/code/gson/gson/2.2.4/gson-2.2.4.jar" } },
+      "name": "com.google.code.gson:gson:2.2.4"
+    }
+  ],
+  "mainClass": "net.minecraft.client.main.Main",
+  "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}",
+  "minimumLauncherVersion": 14,
+  "releaseTime": "2015-12-03T09:24:39+00:00",
+  "time": "2015-12-09T00:00:00+00:00",
+  "type": "release"
+}

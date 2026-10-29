@@ -1,0 +1,13 @@
+{
+  "latest": { "release": "1.21.4", "snapshot": "25w03a" },
+  "versions": [
+    { "id": "25w03a", "type": "snapshot", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000001/25w03a.json", "time": "2025-01-15T12:00:00+00:00", "releaseTime": "2025-01-15T12:00:00+00:00", "sha1": "0000000000000000000000000000000000000001", "complianceLevel": 1 },
+    { "id": "1.21.4", "type": "release", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000002/1.21.4.json", "time": "2024-12-03T10:12:57+00:00", "releaseTime": "2024-12-03T10:12:57+00:00", "sha1": "0000000000000000000000000000000000000002", "complianceLevel": 1 },
+    { "id": "1.12.2", "type": "release", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000003/1.12.2.json", "time": "2017-09-18T08:39:46+00:00", "releaseTime": "2017-09-18T08:39:46+00:00", "sha1": "0000000000000000000000000000000000000003", "complianceLevel": 0 },
+    { "id": "1.8.9", "type": "release", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000004/1.8.9.json", "time": "2015-12-09T00:00:00+00:00", "releaseTime": "2015-12-03T09:24:39+00:00", "sha1": "0000000000000000000000000000000000000004", "complianceLevel": 0 },
+    { "id": "1.8", "type": "release", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000005/1.8.json", "time": "2014-09-02T08:24:35+00:00", "releaseTime": "2014-09-02T08:24:35+00:00", "sha1": "0000000000000000000000000000000000000005", "complianceLevel": 0 },
+    { "id": "14w02a", "type": "snapshot", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000006/14w02a.json", "time": "2014-01-09T00:00:00+00:00", "releaseTime": "2014-01-09T00:00:00+00:00", "sha1": "0000000000000000000000000000000000000006", "complianceLevel": 0 },
+    { "id": "1.7.10", "type": "release", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000007/1.7.10.json", "time": "2014-05-14T17:29:23+00:00", "releaseTime": "2014-05-14T17:29:23+00:00", "sha1": "0000000000000000000000000000000000000007", "complianceLevel": 0 },
+    { "id": "experimental-x", "type": "experimental", "url": "https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000008/x.json", "time": "2013-01-01T00:00:00+00:00", "releaseTime": "2013-01-01T00:00:00+00:00", "sha1": "0000000000000000000000000000000000000008", "complianceLevel": 0 }
+  ]
+}
