@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 rustcraft-core.workspace = true
+rustcraft-protocol.workspace = true
 rustcraft-renderer.workspace = true
 rustcraft-world.workspace = true
 anyhow.workspace = true

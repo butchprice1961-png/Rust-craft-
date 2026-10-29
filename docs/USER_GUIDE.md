@@ -80,6 +80,32 @@ To use it, create a 1.8.9 instance and select **RustCraft engine
 
 The game also pauses when its window loses focus.
 
+### Playing on a server
+
+The engine can join servers for Minecraft 1.8 to 1.8.9. Open the instance's
+**Edit** dialog and enter the server address (`host` or `host:port`). Press
+**Play** to join it; clear the field to play the local world again.
+
+- **Online-mode servers** (most public servers) need a signed-in account
+  that owns the game. RustCraft signs you in to the server through Mojang's
+  session service, as the official client does.
+- **Offline-mode servers** accept any name and need no account.
+
+On a server:
+
+| Key | Action |
+|---|---|
+| T or Enter | Open the chat |
+| / | Open the chat with a command started |
+| Enter (in the chat) | Send |
+| Esc | Close the chat, or open the game menu; **Disconnect** leaves the server |
+
+In survival mode, hold the left mouse button to dig; the bar under the
+crosshair shows the progress. The hotbar shows the blocks in your server
+inventory. Health and food are shown above it. Other players, mobs and items
+are not shown yet; see
+[COMPATIBILITY.md](COMPATIBILITY.md#rustcraft-engine-on-servers).
+
 ### Options
 
 **Esc → Options** sets the render distance, field of view, mouse

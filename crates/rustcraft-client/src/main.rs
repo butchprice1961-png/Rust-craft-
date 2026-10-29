@@ -1,8 +1,8 @@
 //! RustCraft's native client for Minecraft: Java Edition 1.8.9 worlds.
 //!
 //! Plays local worlds (Anvil format, compatible with vanilla 1.8 saves)
-//! in creative mode. The launcher starts it with a JSON spec on stdin;
-//! developers can use flags (`--help`).
+//! in creative mode, and joins 1.8 servers (protocol 47). The launcher
+//! starts it with a JSON spec on stdin; developers can use flags (`--help`).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -11,6 +11,7 @@ mod game;
 mod hud;
 mod local;
 mod player;
+mod remote;
 mod settings;
 mod spec;
 
@@ -71,10 +72,6 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if spec.server.is_some() {
-        eprintln!("Multiplayer is not available in this build of the native client yet.");
-        return ExitCode::from(2);
-    }
     install_crash_reporter(spec.game_dir.clone());
     tracing::info!("RustCraft client {} starting in {}", env!("CARGO_PKG_VERSION"), spec.game_dir.display());
 

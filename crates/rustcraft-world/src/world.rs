@@ -212,6 +212,12 @@ impl World {
         self.stitch_light(cx, cz);
     }
 
+    /// Inserts a chunk whose light is already final (a server's), without
+    /// propagating light across its borders.
+    pub fn insert_lit_chunk(&mut self, chunk: Chunk) {
+        self.chunks.insert((chunk.x, chunk.z), chunk);
+    }
+
     pub fn remove_chunk(&mut self, cx: i32, cz: i32) -> Option<Chunk> {
         self.chunks.remove(&(cx, cz))
     }

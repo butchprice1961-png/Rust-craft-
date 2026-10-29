@@ -43,6 +43,14 @@ jobs:
         run: |
           xvfb-run -a target/debug/rustcraft-client --game-dir "$RUNNER_TEMP/client" --seed 1 --render-distance 4 --screenshot lifecycle-out/client.png
           test -s lifecycle-out/client.png
+      - name: Native client joins the test server
+        run: |
+          cargo build --locked -p rustcraft-protocol --example flat_server
+          target/debug/examples/flat_server 25599 > lifecycle-out/flat-server.log 2>&1 &
+          sleep 1
+          xvfb-run -a target/debug/rustcraft-client --game-dir "$RUNNER_TEMP/mp" --server 127.0.0.1:25599 --name Tester --screenshot lifecycle-out/multiplayer.png
+          test -s lifecycle-out/multiplayer.png
+          grep -q "joined: Tester" lifecycle-out/flat-server.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

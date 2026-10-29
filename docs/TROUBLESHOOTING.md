@@ -94,6 +94,22 @@ uses the official Java client).
 installation."** `rustcraft-client` must be in the same folder as the
 launcher program. Install RustCraft again.
 
+**"this server is in online mode and needs a signed-in Minecraft account"**
+Sign in in the launcher with the account that owns the game, then join
+again.
+
+**"Mojang refused the session; sign in again in the launcher"** The saved
+sign-in has expired or was revoked. Sign out and sign in again.
+
+**"Could not join …: connection failed …"** Check the address and port. If
+the server's address works in the official client but not here, the server
+may rely on a DNS SRV record, which RustCraft does not look up yet; use the
+server's host name and port directly.
+
+**"Disconnected: …"** The server closed the connection and gave this
+reason, for example a kick, a ban, a whitelist or a wrong game version. The
+engine only joins servers for Minecraft 1.8 to 1.8.9.
+
 **"no compatible GPU found"** The engine needs Vulkan, Metal, DirectX 12 or
 OpenGL ES 3 support. Update your graphics drivers. On Linux, install your
 distribution's Mesa Vulkan drivers (for example `mesa-vulkan-drivers`).

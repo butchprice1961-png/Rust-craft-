@@ -36,7 +36,21 @@ A small Java start-up class that receives the token through a pipe would
 remove this exposure. RustCraft does not have one yet.
 
 The RustCraft engine does not have this problem: the launcher passes its
-launch data through a pipe, never on the command line.
+launch data, including the token when joining a server, through a pipe,
+never on the command line.
+
+### Joining servers with the RustCraft engine
+
+For an online-mode server, the engine does what the official client does:
+it creates a random 16-byte key with the operating system's random number
+generator, sends Mojang's session service (`sessionserver.mojang.com`, over
+HTTPS) the token with a hash of the server's key, and encrypts the
+connection with AES. Only the server's public RSA key is used, for
+encryption. The token goes to Mojang only, never to the server.
+
+`cargo audit` reports RUSTSEC-2023-0071 for the `rsa` crate, a timing side
+channel in RSA decryption with a private key. RustCraft never decrypts with
+RSA, so the advisory does not apply; `.cargo/audit.toml` records this.
 
 ## Downloads
 
@@ -107,7 +121,8 @@ only to:
 - Microsoft, Xbox and Minecraft services, to sign in;
 - Mojang's servers, for game files and Java runtimes;
 - Fabric's metadata service (`meta.fabricmc.net`), only for Fabric instances;
-- the server you choose to join, through the game.
+- the server you choose to join, through the game, and for online-mode
+  servers Mojang's session service.
 
 Worlds, logs, crash reports, mods and screenshots stay on your computer.
 

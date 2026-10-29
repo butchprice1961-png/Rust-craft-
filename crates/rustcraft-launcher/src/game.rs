@@ -119,11 +119,6 @@ async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, Launch
     if inst.game_version != NATIVE_VERSION {
         return Err(fail(format!("The RustCraft engine only supports {NATIVE_VERSION}.")));
     }
-    if inst.server.as_deref().is_some_and(|s| !s.trim().is_empty()) {
-        return Err(fail(
-            "The RustCraft engine cannot join servers yet. Remove the server line from this instance's instance.toml.",
-        ));
-    }
     let exe_name = if cfg!(windows) { "rustcraft-client.exe" } else { "rustcraft-client" };
     let exe = std::env::current_exe()?.with_file_name(exe_name);
     if !exe.exists() {
@@ -142,16 +137,38 @@ async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, Launch
     if jar.exists() {
         packs.push(jar);
     }
-    let account = core.accounts.lock().await.active().cloned();
+    let server = inst.server.clone().filter(|s| !s.trim().is_empty());
+    let mut accounts = core.accounts.lock().await;
+    let account = accounts.active().cloned();
+    // Online-mode servers need a session; offline-mode ones accept any name.
+    let mut token = None;
+    if server.is_some()
+        && let (Some(record), Some(auth)) = (&account, core.auth.as_ref())
+    {
+        match accounts.session(auth, &record.id).await {
+            Ok(session) => {
+                if let Some(reason) = session.multiplayer.blocked_reason() {
+                    return Err(fail(reason));
+                }
+                token = Some(session.access_token.expose().to_string());
+            }
+            Err(e) => tracing::warn!("no Minecraft session ({e}); only offline-mode servers will let the player in"),
+        }
+    }
+    drop(accounts);
     let spec = serde_json::json!({
         "game_dir": game_dir,
         "resource_packs": packs,
         "world": "World",
+        "server": server,
         "player_name": account.as_ref().map_or("Player", |a| a.name.as_str()),
         "player_uuid": account.as_ref().map_or("", |a| a.id.as_str()),
+        "access_token": token,
     });
     Ok(Prepared {
-        command: LaunchCommand::new(exe, vec!["--spec-stdin".into()], game_dir, String::new()),
+        // The token travels in the spec on stdin; it is also redacted from
+        // the game's output in the log.
+        command: LaunchCommand::new(exe, vec!["--spec-stdin".into()], game_dir, token.unwrap_or_default()),
         stdin: Some(spec.to_string().into_bytes()),
         mod_problems: Vec::new(),
     })

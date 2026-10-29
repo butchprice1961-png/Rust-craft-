@@ -1,5 +1,6 @@
 //! In-game interface drawn with egui: crosshair, hotbar, debug screen,
-//! loading screen and the pause/options menu.
+//! loading screen, the pause/options menu and, on servers, chat, health
+//! and the connection screens.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
@@ -10,6 +11,7 @@ use rustcraft_renderer::{Stats, TextureData};
 use rustcraft_world::block::{self, BlockState, Face, Tint};
 
 use crate::game::Game;
+use crate::remote::Status;
 use crate::settings::Settings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +19,7 @@ pub enum Menu {
     None,
     Pause,
     Options,
+    Chat,
 }
 
 pub enum Action {
@@ -24,16 +27,26 @@ pub enum Action {
     Resume,
     SaveAndQuit,
     SettingsChanged,
+    SendChat(String),
+    Respawn,
+    /// Close after the disconnect screen.
+    Quit,
 }
 
 pub struct Hud {
     pub menu: Menu,
     pub show_debug: bool,
     pub hidden: bool,
+    pub chat_input: String,
+    /// Set when the chat opens: the key that opened it may arrive as text.
+    pub chat_fresh: bool,
     icons: HashMap<BlockState, egui::TextureHandle>,
     frames: VecDeque<(Instant, Duration)>,
     pub adapter: String,
 }
+
+/// How long chat lines stay on screen while the chat is closed.
+const CHAT_FADE: Duration = Duration::from_secs(10);
 
 impl Hud {
     pub fn new(adapter: String) -> Self {
@@ -41,6 +54,8 @@ impl Hud {
             menu: Menu::None,
             show_debug: false,
             hidden: false,
+            chat_input: String::new(),
+            chat_fresh: false,
             icons: HashMap::new(),
             frames: VecDeque::new(),
             adapter,
@@ -98,35 +113,162 @@ impl Hud {
         stats: Stats,
         settings: &mut Settings,
     ) -> Action {
+        if let Some(r) = game.remote_ref() {
+            match &r.status {
+                Status::Connecting => {
+                    Self::waiting(ctx, &format!("Connecting to {}", r.address));
+                    return Action::None;
+                }
+                Status::Closed(reason) => return Self::disconnected(ctx, reason),
+                Status::Playing => {}
+            }
+        }
         // Like vanilla: wait for the ground under the player, then stream the
         // rest in while playing.
         if !game.spawn_area_ready() {
-            egui::Area::new(egui::Id::unique("loading")).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-                Frame::new()
-                    .fill(Color32::from_black_alpha(200))
-                    .corner_radius(CornerRadius::same(12))
-                    .inner_margin(Margin::same(24))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.add(egui::Spinner::new().size(22.0).color(Color32::WHITE));
-                            ui.label(RichText::new("Loading world").size(22.0).color(Color32::WHITE));
-                        });
-                    });
-            });
+            Self::waiting(ctx, if game.remote_ref().is_some() { "Joining world" } else { "Loading world" });
             return Action::None;
         }
         if !self.hidden {
             self.crosshair(ctx);
             self.hotbar(ctx, game, textures);
+            self.server_status(ctx, game);
         }
         if self.show_debug {
             self.debug(ctx, game, stats);
         }
+        if let Some(r) = game.remote_ref()
+            && r.health <= 0.0
+            && !r.creative()
+        {
+            return Self::death_screen(ctx);
+        }
         match self.menu {
             Menu::None => Action::None,
-            Menu::Pause => self.pause_menu(ctx),
+            Menu::Pause => self.pause_menu(ctx, game.remote_ref().is_some()),
             Menu::Options => self.options(ctx, settings),
+            Menu::Chat => self.chat_input(ctx),
         }
+    }
+
+    fn waiting(ctx: &egui::Context, text: &str) {
+        egui::Area::new(egui::Id::unique("loading")).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            Frame::new()
+                .fill(Color32::from_black_alpha(200))
+                .corner_radius(CornerRadius::same(12))
+                .inner_margin(Margin::same(24))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Spinner::new().size(22.0).color(Color32::WHITE));
+                        ui.label(RichText::new(text).size(22.0).color(Color32::WHITE));
+                    });
+                });
+        });
+    }
+
+    fn disconnected(ctx: &egui::Context, reason: &str) -> Action {
+        let mut action = Action::None;
+        Self::menu_frame(ctx, "Disconnected", |ui| {
+            ui.label(RichText::new(reason).color(Color32::LIGHT_GRAY));
+            ui.add_space(8.0);
+            if ui.add(egui::Button::new("Quit").min_size(Vec2::new(0.0, 34.0))).clicked() {
+                action = Action::Quit;
+            }
+        });
+        action
+    }
+
+    fn death_screen(ctx: &egui::Context) -> Action {
+        let mut action = Action::None;
+        Self::menu_frame(ctx, "You died!", |ui| {
+            if ui.add(egui::Button::new("Respawn").min_size(Vec2::new(0.0, 34.0))).clicked() {
+                action = Action::Respawn;
+            }
+        });
+        action
+    }
+
+    /// Chat, the action bar, health and digging progress on a server.
+    fn server_status(&self, ctx: &egui::Context, game: &Game) {
+        let Some(r) = game.remote_ref() else { return };
+        let screen = ctx.content_rect();
+        let open = self.menu == Menu::Chat;
+        let lines: Vec<&String> = r
+            .chat
+            .iter()
+            .rev()
+            .filter(|(at, _)| open || at.elapsed() < CHAT_FADE)
+            .take(if open { 20 } else { 10 })
+            .map(|(_, line)| line)
+            .collect();
+        if !lines.is_empty() {
+            egui::Area::new(egui::Id::unique("chat")).anchor(Align2::LEFT_BOTTOM, Vec2::new(8.0, -96.0)).show(
+                ctx,
+                |ui| {
+                    ui.set_max_width(screen.width().min(620.0));
+                    for line in lines.into_iter().rev() {
+                        Frame::new().fill(Color32::from_black_alpha(110)).inner_margin(Margin::symmetric(6, 1)).show(
+                            ui,
+                            |ui| {
+                                ui.label(RichText::new(line).color(Color32::WHITE));
+                            },
+                        );
+                    }
+                },
+            );
+        }
+        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("status")));
+        if let Some((at, text)) = &r.action_bar
+            && at.elapsed() < Duration::from_secs(3)
+        {
+            let pos = screen.center_bottom() - Vec2::new(0.0, 100.0);
+            painter.text(pos, Align2::CENTER_BOTTOM, text, FontId::proportional(15.0), Color32::WHITE);
+        }
+        if !r.creative() {
+            let text = format!("Health {:.0} / 20    Food {} / 20", r.health.max(0.0), r.food);
+            let pos = screen.center_bottom() - Vec2::new(0.0, 76.0);
+            painter.text(
+                pos,
+                Align2::CENTER_BOTTOM,
+                text,
+                FontId::proportional(14.0),
+                Color32::from_rgb(0xff, 0xd0, 0xd0),
+            );
+        }
+        if let Some(progress) = r.dig_progress() {
+            let c = screen.center() + Vec2::new(-20.0, 16.0);
+            let bar = egui::Rect::from_min_size(c, Vec2::new(40.0, 4.0));
+            painter.rect_filled(bar, 1.0, Color32::from_black_alpha(160));
+            painter.rect_filled(
+                egui::Rect::from_min_size(c, Vec2::new(40.0 * progress.min(1.0), 4.0)),
+                1.0,
+                Color32::WHITE,
+            );
+        }
+    }
+
+    fn chat_input(&mut self, ctx: &egui::Context) -> Action {
+        let mut action = Action::None;
+        egui::Area::new(egui::Id::unique("chat-input"))
+            .anchor(Align2::LEFT_BOTTOM, Vec2::new(8.0, -64.0))
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let prefix = self.chat_fresh.then(|| self.chat_input.clone());
+                let edit = egui::TextEdit::singleline(&mut self.chat_input)
+                    .desired_width(ctx.content_rect().width().min(620.0))
+                    .char_limit(100)
+                    .hint_text("Chat or /command, Enter to send");
+                let response = ui.add(edit);
+                response.request_focus();
+                if let Some(prefix) = prefix {
+                    self.chat_input = prefix;
+                    self.chat_fresh = false;
+                }
+                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    action = Action::SendChat(std::mem::take(&mut self.chat_input));
+                }
+            });
+        action
     }
 
     fn crosshair(&self, ctx: &egui::Context) {
@@ -209,6 +351,7 @@ impl Hud {
             format!("Triangles: {}  GPU memory: {:.1} MiB", stats.triangles, stats.gpu_bytes as f64 / 1048576.0),
             format!("Time: {} (day {})", game.day_time.rem_euclid(24000), game.day_time / 24000),
             format!("GPU: {}", self.adapter),
+            game.remote_ref().map_or(String::new(), |r| format!("Server: {} ({:?} mode)", r.address, r.mode)),
             match game.target {
                 Some(t) => format!(
                     "Looking at: {} {} {} {}",
@@ -258,7 +401,7 @@ impl Hud {
             });
     }
 
-    fn pause_menu(&mut self, ctx: &egui::Context) -> Action {
+    fn pause_menu(&mut self, ctx: &egui::Context, multiplayer: bool) -> Action {
         let mut action = Action::None;
         Self::menu_frame(ctx, "Game menu", |ui| {
             if ui.add(egui::Button::new("Back to game").min_size(Vec2::new(0.0, 34.0))).clicked() {
@@ -267,7 +410,8 @@ impl Hud {
             if ui.add(egui::Button::new("Options…").min_size(Vec2::new(0.0, 34.0))).clicked() {
                 self.menu = Menu::Options;
             }
-            if ui.add(egui::Button::new("Save and quit").min_size(Vec2::new(0.0, 34.0))).clicked() {
+            let leave = if multiplayer { "Disconnect" } else { "Save and quit" };
+            if ui.add(egui::Button::new(leave).min_size(Vec2::new(0.0, 34.0))).clicked() {
                 action = Action::SaveAndQuit;
             }
         });

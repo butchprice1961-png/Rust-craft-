@@ -21,8 +21,11 @@ pub struct LaunchSpec {
     /// `host[:port]` to join instead of playing locally.
     pub server: Option<String>,
     pub player_name: String,
-    /// Undashed UUID; RustCraft derives an offline one if empty.
+    /// Undashed UUID of the signed-in profile; empty when not signed in.
     pub player_uuid: String,
+    /// Minecraft services token, for online-mode servers. Only the launcher
+    /// passes it, on standard input.
+    pub access_token: Option<Secret>,
     pub render_distance: u32,
     /// Automation: save a screenshot once the world has loaded, then exit.
     pub screenshot: Option<PathBuf>,
@@ -41,6 +44,7 @@ impl Default for LaunchSpec {
             server: None,
             player_name: "Player".into(),
             player_uuid: String::new(),
+            access_token: None,
             render_distance: 8,
             screenshot: None,
             benchmark_seconds: None,
@@ -61,6 +65,17 @@ rustcraft-client [options]
   --benchmark <seconds>    fly a fixed route, print frame timings, then exit
   --spec-stdin             read a JSON launch spec from standard input
 ";
+
+/// A token that never appears in logs or debug output.
+#[derive(Clone, Deserialize)]
+#[serde(transparent)]
+pub struct Secret(pub String);
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<redacted>")
+    }
+}
 
 impl LaunchSpec {
     pub fn from_args(args: &[String]) -> Result<LaunchSpec, String> {
@@ -115,7 +130,10 @@ mod tests {
         assert!(LaunchSpec::from_args(&args("--world ../x")).is_err());
         assert!(LaunchSpec::from_args(&args("--seed")).is_err());
         assert!(LaunchSpec::from_args(&args("--bogus")).is_err());
-        let json: LaunchSpec = serde_json::from_str(r#"{"world":"W","server":"localhost:25565"}"#).unwrap();
+        let json: LaunchSpec =
+            serde_json::from_str(r#"{"world":"W","server":"localhost:25565","access_token":"T0K3N"}"#).unwrap();
+        assert_eq!(json.access_token.as_ref().unwrap().0, "T0K3N");
+        assert!(!format!("{json:?}").contains("T0K3N"));
         assert_eq!(json.render_distance, 8);
         assert_eq!(json.server.as_deref(), Some("localhost:25565"));
     }

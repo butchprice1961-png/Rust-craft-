@@ -76,14 +76,42 @@ run Mojang's code. Status: **experimental**.
 | Interaction | Breaking and placing blocks, a 9-slot hotbar and pick block. Placement sets the orientation of torches, logs, slabs, stairs, pumpkins, furnaces, chests and dispensers. Doors and beds are placed as a single half |
 | Textures | Built-in original art. If you add a 1.8 resource pack to the instance's `resourcepacks` folder, it is used. If the launcher has downloaded the official 1.8.9 client jar (from a signed-in launch of a 1.8.9 Java instance), its textures are used, read from your own copy |
 | Settings | Render distance 2–32, field of view, mouse sensitivity, VSync and a frame-rate limit, in the pause menu |
-| Not yet available | Survival mode, health and hunger, mobs and other entities, inventory and crafting screens, fluid flow, redstone, sound, the Nether and the End, multiplayer |
+| Not yet available | Survival mode in local worlds, mobs and other entities, inventory and crafting screens, fluid flow, redstone, sound, the Nether and the End |
 
 ## Multiplayer
 
 | Feature | Status |
 |---|---|
 | Joining servers with the official client | Tested: the instance's server field starts the game with `--server`/`--port` (1.8–1.19) or Quick Play (1.20+). The launcher blocks the join if Minecraft services report that multiplayer is disabled for the account |
-| RustCraft engine multiplayer (protocol 47) | Not supported yet. The engine refuses `--server`, and the launcher does not offer servers for engine instances |
+| RustCraft engine multiplayer (protocol 47) | Experimental; see below |
+
+### RustCraft engine on servers
+
+The engine speaks protocol 47, the network protocol of Minecraft 1.8 to
+1.8.9. It joins a server set in the instance's options.
+
+How it was tested: unit tests for its data types and main packets, the
+NIST test vector for the AES/CFB8 stream cipher, Minecraft's documented
+server-hash examples, and an in-process online-mode server that performs
+the full login with RSA, encryption, compression and a mock session
+service. A small test server (`cargo run -p rustcraft-protocol --example
+flat_server`) checks the client end to end in CI. **It has not been tested
+against a real server implementation (vanilla, Spigot, Paper or Cuberite)
+yet**: building and running one was not allowed in the environment where
+RustCraft was built.
+
+| Feature | Status |
+|---|---|
+| Offline-mode servers | Join with the player name; no account needed |
+| Online-mode servers | Join with the signed-in account through Mojang's session service, as the official client does. Without a signed-in account, the engine says the server needs one |
+| Compression and encryption | Yes |
+| The world | Chunk data and chunk bulks, block and multi-block changes, time of day, unloading |
+| Movement | Sent every tick like the 1.8 client; the server's corrections are applied |
+| Creative mode | Instant breaking; placing any block from the hotbar (the server is told which item it is) |
+| Survival and adventure mode | Digging with 1.8's timing for the held tool; placing blocks from the server's hotbar; health and food shown as numbers; death screen with respawn |
+| Chat | Receiving (including the common translation keys) and sending messages and commands (T, /) |
+| Disconnects | The server's reason is shown |
+| Not yet available | Other players, mobs, items and other entities; the inventory screen and containers; signs' text; weather; sounds; Nether and End skies; server addresses that rely on SRV records; walking through blocks in spectator mode; the server list |
 
 ## Platforms
 

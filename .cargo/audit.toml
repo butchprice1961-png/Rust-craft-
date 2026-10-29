@@ -1,0 +1,6 @@
+[advisories]
+# RUSTSEC-2023-0071 (rsa, "Marvin attack") is a timing side channel in RSA
+# decryption with a private key. RustCraft only encrypts, with a server's
+# public key, during the 1.8 login handshake, which the advisory does not
+# affect. No fixed rsa release exists yet.
+ignore = ["RUSTSEC-2023-0071"]

@@ -567,9 +567,16 @@ impl LauncherApp {
             );
             if draft.engine == Engine::Native {
                 ui.label(muted(
-                    "The RustCraft engine runs without Java, so memory, Java and server options do not apply. \
+                    "The RustCraft engine runs without Java, so memory and Java options do not apply. \
                      Game options are in its pause menu (Esc).",
                 ));
+                let mut server = draft.server.clone().unwrap_or_default();
+                ui.add(
+                    TextEdit::singleline(&mut server)
+                        .hint_text("Join a 1.8 server on launch (host:port), optional")
+                        .desired_width(f32::INFINITY),
+                );
+                draft.server = (!server.trim().is_empty()).then(|| server.trim().to_string());
             } else {
                 theme::section(ui, "Memory");
                 ui.add(egui::Slider::new(&mut draft.max_memory_mb, 512..=16384).step_by(256.0).text("maximum (MB)"));
@@ -1085,7 +1092,7 @@ const COMPATIBILITY: &[(&str, &str, &str, Color32)] = &[
     ("Fabric mods (JVM)", "Versions Fabric supports", "Unverified", WARNING),
     ("Forge / NeoForge mods", "—", "Not supported", DANGER),
     ("RustCraft engine", "1.8.9 local worlds (creative)", "Experimental", WARNING),
-    ("RustCraft engine multiplayer", "—", "Not yet available", WARNING),
+    ("RustCraft engine multiplayer", "1.8 servers (protocol 47)", "Experimental", WARNING),
 ];
 
 fn modal(ctx: &egui::Context, id: &str, add: impl FnOnce(&mut Ui)) {

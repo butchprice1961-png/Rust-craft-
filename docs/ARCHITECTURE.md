@@ -6,9 +6,10 @@ RustCraft is a Cargo workspace. Every crate is in `crates/`.
 rustcraft-launcher (bin: rustcraft)        rustcraft-client (bin: rustcraft-client)
   ├─ rustcraft-auth                          ├─ rustcraft-renderer
   ├─ rustcraft-assets                        │    └─ rustcraft-world
-  ├─ rustcraft-mods                          └─ rustcraft-world
-  ├─ rustcraft-platform                                 └─ rustcraft-core
-  └─ rustcraft-core
+  ├─ rustcraft-mods                          ├─ rustcraft-protocol
+  ├─ rustcraft-platform                      │    └─ rustcraft-world
+  └─ rustcraft-core                          └─ rustcraft-world
+                                                  └─ rustcraft-core
 ```
 
 The launcher and the engine are separate programs. They share no code at
@@ -27,12 +28,13 @@ starts the official Java client.
 | `rustcraft-launcher` | The `eframe`/`egui` user interface, instances, settings, the launch pipeline and the game supervisor |
 | `rustcraft-world` | 1.8 block data (ids, metadata, shapes, collision, textures), chunks and sections, sky and block light, ray casts, collisions, Anvil region files and `level.dat`, and the terrain generator |
 | `rustcraft-renderer` | A `wgpu` renderer: textures from resource packs or built-in art in one texture array, section meshing, frustum culling, fog, the day–night sky, block outlines, and an off-screen render used by tests |
-| `rustcraft-client` | The RustCraft engine: window and input (`winit`), the 20 Hz game loop, player physics, block interaction, chunk streaming and saving, and the `egui` interface |
+| `rustcraft-protocol` | Minecraft 1.8 networking (protocol 47): data types, framing, zlib compression, AES/CFB8 encryption, login (offline, or online through Mojang's session service), and the play packets the engine uses, including 1.8 chunk data. `examples/flat_server.rs` is a small test server |
+| `rustcraft-client` | The RustCraft engine: window and input (`winit`), the 20 Hz game loop, player physics, block interaction, chunk streaming and saving, multiplayer (`remote.rs`), and the `egui` interface |
 
-The specification also named `rustcraft-protocol`, `rustcraft-audio` and
-`rustcraft-tests` crates. They do not exist yet, because there is no
-multiplayer protocol, sound or separate test suite to put in them. Tests
-live next to the code they test (`src/**` unit tests and `crates/*/tests/`).
+The specification also named `rustcraft-audio` and `rustcraft-tests`
+crates. They do not exist yet, because there is no sound or separate test
+suite to put in them. Tests live next to the code they test (`src/**` unit
+tests and `crates/*/tests/`).
 
 ## Launching a game
 
@@ -70,6 +72,15 @@ live next to the code they test (`src/**` unit tests and `crates/*/tests/`).
 - **Rendering** (`renderer/src/lib.rs`): one draw per visible section, with
   solid, cutout and translucent passes. Positions are relative to the
   camera, so precision holds far from the world origin.
+
+## Multiplayer
+
+A network thread (`client/src/remote.rs`) logs in, answers keep-alives
+itself (so a busy or hidden window cannot time out) and decodes packets. The
+game thread applies them within a time budget per frame, and sends movement
+every tick, digging, placing and chat. Blocks the player changes are shown
+at once; the server's block updates have the last word. Chunks from a
+server keep the server's light.
 
 ## Design rules
 

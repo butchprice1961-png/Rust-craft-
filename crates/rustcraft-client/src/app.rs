@@ -19,6 +19,7 @@ use rustcraft_renderer::{Camera, Renderer, Scene, TextureData, render_to_image, 
 use crate::game::Game;
 use crate::hud::{Action, Hud, Menu};
 use crate::local::LocalWorld;
+use crate::remote::{Remote, Status};
 use crate::settings::Settings;
 use crate::spec::LaunchSpec;
 
@@ -155,10 +156,24 @@ impl App {
         );
         let egui_renderer = egui_wgpu::Renderer::new(&device, view_format, egui_wgpu::RendererOptions::default());
 
-        let saves = self.spec.game_dir.join("saves");
-        let local = LocalWorld::open(&saves, &self.spec.world, self.spec.seed)?;
-        let game =
-            Game::new(local, self.textures.lookup.clone(), self.textures.biome_colors(), self.settings.render_distance);
+        let (lookup, colors, distance) =
+            (self.textures.lookup.clone(), self.textures.biome_colors(), self.settings.render_distance);
+        let game = match &self.spec.server {
+            Some(address) => {
+                let session = self
+                    .spec
+                    .access_token
+                    .as_ref()
+                    .filter(|_| !self.spec.player_uuid.is_empty())
+                    .map(|t| (t.0.clone(), self.spec.player_uuid.clone()));
+                let remote = Remote::connect(address.clone(), self.spec.player_name.clone(), session);
+                Game::new_remote(remote, lookup, colors, distance)
+            }
+            None => {
+                let saves = self.spec.game_dir.join("saves");
+                Game::new(LocalWorld::open(&saves, &self.spec.world, self.spec.seed)?, lookup, colors, distance)
+            }
+        };
         let benchmark = self.spec.benchmark_seconds.map(|_| Benchmark {
             until: None,
             ticks: 0,
@@ -226,6 +241,12 @@ impl Running {
         if self.hud.menu != Menu::None {
             return;
         }
+        if down && self.game.remote_ref().is_some() && matches!(code, KeyCode::KeyT | KeyCode::Slash | KeyCode::Enter) {
+            self.hud.chat_input = if code == KeyCode::Slash { "/".into() } else { String::new() };
+            self.hud.chat_fresh = true;
+            self.set_menu(Menu::Chat);
+            return;
+        }
         let c = &mut self.game.controls;
         match code {
             KeyCode::KeyW => c.forward = down,
@@ -258,7 +279,7 @@ impl Running {
                     KeyCode::Digit9,
                 ];
                 if let Some(slot) = DIGITS.iter().position(|d| *d == code) {
-                    self.game.selected = slot;
+                    self.game.select(slot);
                 }
             }
             _ => {}
@@ -417,12 +438,17 @@ impl Running {
 
         match action {
             Action::Resume => self.set_menu(Menu::None),
-            Action::SaveAndQuit => {
-                self.game.save();
+            Action::SaveAndQuit | Action::Quit => {
+                self.game.leave();
                 return Ok(false);
             }
+            Action::SendChat(text) => {
+                self.game.send_chat(&text);
+                self.set_menu(Menu::None);
+            }
+            Action::Respawn => self.game.respawn(),
             Action::SettingsChanged => {
-                self.game.render_distance = settings.render_distance;
+                self.game.set_render_distance(settings.render_distance);
                 let mode = if settings.vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync };
                 if mode != self.config.present_mode {
                     self.config.present_mode = mode;
@@ -433,12 +459,18 @@ impl Running {
             Action::None => {}
         }
 
-        if !self.ready_sent && self.game.spawn_area_ready() {
-            // Tells the launcher the game is up, so it can hide its window.
+        // Tells the launcher the game is up, so it can hide its window. On a
+        // server that is at once: connection progress shows in this window.
+        if !self.ready_sent && (self.game.spawn_area_ready() || self.game.remote_ref().is_some()) {
             println!("RUSTCRAFT_READY");
             let _ = std::io::stdout().flush();
             self.ready_sent = true;
-            tracing::info!("playable {:.2}s after start", started.elapsed().as_secs_f64());
+            tracing::info!("window ready {:.2}s after start", started.elapsed().as_secs_f64());
+        }
+        if (spec.screenshot.is_some() || spec.benchmark_seconds.is_some())
+            && let Some(Status::Closed(reason)) = self.game.remote_ref().map(|r| &r.status)
+        {
+            return Err(anyhow!("{reason}"));
         }
         if self.game.fully_loaded() {
             self.loaded_frames += 1;
@@ -529,7 +561,7 @@ impl ApplicationHandler for App {
         let response = r.egui_state.on_window_event(&r.window, &event);
         match event {
             WindowEvent::CloseRequested => {
-                r.game.save();
+                r.game.leave();
                 event_loop.exit();
             }
             WindowEvent::Resized(size) if size.width > 0 && size.height > 0 => {
@@ -572,7 +604,7 @@ impl ApplicationHandler for App {
                 };
                 if lines.abs() >= 1.0 {
                     let step = if lines > 0.0 { 8 } else { 1 };
-                    r.game.selected = (r.game.selected + step) % 9;
+                    r.game.select((r.game.selected + step) % 9);
                 }
             }
             WindowEvent::RedrawRequested => match r.frame(&self.spec, &mut self.settings, &self.textures, self.started)
@@ -581,7 +613,7 @@ impl ApplicationHandler for App {
                 Ok(false) => event_loop.exit(),
                 Err(e) => {
                     self.result = Err(format!("{e:#}"));
-                    r.game.save();
+                    r.game.leave();
                     event_loop.exit();
                 }
             },

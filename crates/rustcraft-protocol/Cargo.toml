@@ -1,0 +1,24 @@
+[package]
+name = "rustcraft-protocol"
+description = "Minecraft: Java Edition 1.8 (protocol 47) client networking for RustCraft's engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rustcraft-core.workspace = true
+rustcraft-world.workspace = true
+aes = "0.8.4"
+cfb8 = "0.8.1"
+flate2 = "1.1.10"
+getrandom = "0.3"
+glam.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
+rsa = "0.9.8"
+rustls.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
