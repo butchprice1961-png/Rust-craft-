@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri
+      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri libxkbcommon-x11-0
       - run: cargo build --locked -p rustcraft-launcher
       - run: xvfb-run -a scripts/lifecycle-smoke.sh target/debug/rustcraft lifecycle-out
       - uses: actions/upload-artifact@v4

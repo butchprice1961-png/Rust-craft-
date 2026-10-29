@@ -571,7 +571,7 @@ pub fn fallback(name: &str) -> image::RgbaImage {
                 _ => 0xFF2010,
             };
             for (x, y, p) in img.enumerate_pixels_mut() {
-                if hash(name, x / 3, y / 3) % 5 == 0 && noise(x, y) > 0.3 {
+                if hash(name, x / 3, y / 3).is_multiple_of(5) && noise(x, y) > 0.3 {
                     let c = rgb(speck);
                     *p = image::Rgba([c[0], c[1], c[2], 255]);
                 }
@@ -586,7 +586,7 @@ pub fn fallback(name: &str) -> image::RgbaImage {
                 let mortar = match name {
                     n if n.starts_with("planks") => y % 4 == 3,
                     n if n.starts_with("cobblestone") => {
-                        hash(name, x / 4, y / 4) % 3 == 0 && (x % 4 == 0 || y % 4 == 0)
+                        hash(name, x / 4, y / 4).is_multiple_of(3) && (x % 4 == 0 || y % 4 == 0)
                     }
                     "bookshelf" => y == 0 || y == 15 || y == 7 || y == 8,
                     _ => y % 4 == 3 || (x + if (y / 4) % 2 == 0 { 0 } else { 4 }) % 8 == 7,
@@ -600,7 +600,7 @@ pub fn fallback(name: &str) -> image::RgbaImage {
         if name.starts_with("log") && name.ends_with("_top") {
             for (x, y, p) in img.enumerate_pixels_mut() {
                 let d = ((x as f32 - 7.5).powi(2) + (y as f32 - 7.5).powi(2)).sqrt() as u32;
-                if d % 3 == 0 || d >= 7 {
+                if d.is_multiple_of(3) || d >= 7 {
                     let c = shade([p[0], p[1], p[2]], if d >= 7 { 0.55 } else { 0.8 });
                     *p = image::Rgba([c[0], c[1], c[2], 255]);
                 }

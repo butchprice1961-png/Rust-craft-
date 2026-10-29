@@ -79,7 +79,20 @@ fn main() -> ExitCode {
             tab: smoke_tab.clone(),
             launch: std::mem::take(&mut smoke_launch),
         });
-        if let Err(e) = run_window(&core, smoke) {
+        // Windowing libraries panic when a system library is missing; turn
+        // that into a readable message instead of a crash.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_window(&core, smoke)));
+        let result = result.unwrap_or_else(|panic| {
+            let detail = panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
+                .unwrap_or_default();
+            Err(eframe::Error::AppCreation(
+                format!("windowing failed: {detail}{}", missing_library_hint(&detail)).into(),
+            ))
+        });
+        if let Err(e) = result {
             tracing::error!("launcher window failed: {e}");
             if core.game.lock().unwrap().is_none() {
                 eprintln!("RustCraft could not open its window: {e}");
@@ -134,6 +147,17 @@ fn run_window(core: &Arc<Core>, smoke: Option<Smoke>) -> eframe::Result {
             eframe::run_native("RustCraft", native_options(eframe::Renderer::Glow), creator(core.clone(), smoke))
         }
         other => other,
+    }
+}
+
+/// Install advice for libraries the window system loads at run time.
+fn missing_library_hint(detail: &str) -> &'static str {
+    if detail.contains("xkbcommon-x11") {
+        " (install libxkbcommon-x11, e.g. `sudo apt install libxkbcommon-x11-0`)"
+    } else if detail.contains("could not be loaded") || detail.contains("cannot open shared object") {
+        " (a system graphics or input library is missing; see docs/TROUBLESHOOTING.md)"
+    } else {
+        ""
     }
 }
 
