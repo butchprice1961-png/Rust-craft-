@@ -22,7 +22,7 @@ starts the official Java client.
 | `rustcraft-core` | Data folder layout (`DataDir`), safe joining of untrusted paths, atomic writes, TOML settings that survive damage, and an NBT reader and writer with limits |
 | `rustcraft-auth` | Microsoft sign-in: OAuth with PKCE through the system browser and a loopback redirect, Xbox Live, XSTS, the Minecraft services login, ownership, profile and privileges; refresh tokens in the OS credential store (`keyring`); the account list |
 | `rustcraft-assets` | Mojang metadata: the version manifest, version files (`inheritsFrom`, rules, natives, both argument formats), libraries, asset indexes and Java runtimes. A downloader with SHA-1 checks, resume, retries, concurrency and cancelling. It builds the game's command line |
-| `rustcraft-mods` | Fabric Loader: lists loader versions and installs a loader profile |
+| `rustcraft-mods` | Fabric Loader: lists loader versions and installs a loader profile. Reads mod metadata from jars (Fabric, Quilt, Forge, NeoForge) and checks mods against an instance with Fabric's version rules |
 | `rustcraft-platform` | The single-instance lock, Java discovery and `java -version` parsing, and opening folders |
 | `rustcraft-launcher` | The `eframe`/`egui` user interface, instances, settings, the launch pipeline and the game supervisor |
 | `rustcraft-world` | 1.8 block data (ids, metadata, shapes, collision, textures), chunks and sections, sky and block light, ray casts, collisions, Anvil region files and `level.dat`, and the terrain generator |

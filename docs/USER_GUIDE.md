@@ -31,7 +31,8 @@ When you create an instance, you choose:
 
 Select an instance's **Edit** button to change memory, Java, extra JVM
 arguments, window size, or a server to join on launch. **Open folder** shows
-the instance's files.
+the instance's files. **Mods** lists the instance's mods, says which ones
+will not load and why, and turns mods on or off (see [MODS.md](MODS.md)).
 
 ## Playing
 

@@ -56,6 +56,7 @@ game versions break on newer Java.
 | Fabric Loader | Tested: installs the loader profile from Fabric's metadata service and runs it with Java. Checked with a hand-written profile through a mock server, not yet with the real service |
 | Quilt | Not supported |
 | Forge, NeoForge | Not supported |
+| Mod checks (loader, game version, dependencies, duplicates), turning mods on and off | Tested: unit tests with generated jars, including oversized and damaged archives |
 | Native Rust/WASM mods, mod conversion | Not supported yet; see [MODS.md](MODS.md) |
 
 ## RustCraft engine (native, no Java)

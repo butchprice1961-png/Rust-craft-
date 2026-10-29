@@ -14,6 +14,7 @@ use rustcraft_assets::{Progress, VersionManifest};
 use rustcraft_auth::AccountRecord;
 use rustcraft_core::fs::unix_time;
 use rustcraft_mods::loader::FabricLoader;
+use rustcraft_mods::scan::{self, Check, ModFile};
 use rustcraft_platform::JavaInstall;
 
 use crate::config::{Graphics, Instance, load_instances};
@@ -110,6 +111,28 @@ pub struct NewInstance {
     pub error: Option<String>,
 }
 
+/// The mods dialog: one instance's mods folder and what the checks found.
+pub struct ModsView {
+    pub instance: Instance,
+    pub dir: PathBuf,
+    pub files: Vec<ModFile>,
+    pub checks: Vec<Check>,
+    pub error: Option<String>,
+}
+
+impl ModsView {
+    pub fn open(instance: Instance, dir: PathBuf) -> Self {
+        let mut view = Self { instance, dir, files: Vec::new(), checks: Vec::new(), error: None };
+        view.rescan();
+        view
+    }
+
+    pub fn rescan(&mut self) {
+        self.files = scan::scan(&self.dir);
+        self.checks = scan::check(&self.files, &game::mod_target(&self.instance));
+    }
+}
+
 /// `--smoke-test <png>`: render, screenshot, exit. Used to check packaged builds.
 pub struct SmokeTest {
     pub output: PathBuf,
@@ -135,6 +158,7 @@ pub struct LauncherApp {
     pub notices: Vec<Notice>,
     pub new_instance: Option<NewInstance>,
     pub edit: Option<Instance>,
+    pub mods: Option<ModsView>,
     pub confirm_delete: Option<String>,
     pub java: Option<Vec<JavaInstall>>,
     pub java_path_text: String,
@@ -166,6 +190,7 @@ impl LauncherApp {
             notices: Vec::new(),
             new_instance: None,
             edit: None,
+            mods: None,
             confirm_delete: None,
             java: None,
             java_path_text: settings.java_path.map(|p| p.display().to_string()).unwrap_or_default(),
@@ -189,6 +214,14 @@ impl LauncherApp {
             Some("help") => Tab::Diagnostics,
             Some("new") => {
                 app.open_new_instance();
+                Tab::Instances
+            }
+            Some("mods") => {
+                if let Some(inst) = app.selected_instance().cloned()
+                    && let Ok(dir) = inst.dir(&app.core.dirs)
+                {
+                    app.mods = Some(ModsView::open(inst, dir.join("mods")));
+                }
                 Tab::Instances
             }
             _ => Tab::Play,
@@ -285,6 +318,13 @@ impl LauncherApp {
                 Err(e) => return Event::LaunchFailed(e),
             };
             tracing::info!("launching {}: {:?}", inst.name, prepared.command.redacted_args());
+            if let Some(first) = prepared.mod_problems.first() {
+                let n = prepared.mod_problems.len();
+                tracing::warn!("mods that will not load: {:?}", prepared.mod_problems);
+                let more = if n > 1 { format!(" (and {} more)", n - 1) } else { String::new() };
+                let message = format!("{first}{more}. Instances → Mods has details.");
+                let _ = tx.send(Event::Notice(Level::Warn, message));
+            }
             let on_ready = move || ctx.request_repaint();
             match game::spawn(&prepared.command, prepared.stdin, &inst.name, &core.dirs.logs(), on_ready) {
                 Ok(running) => {

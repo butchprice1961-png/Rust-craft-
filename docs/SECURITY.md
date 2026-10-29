@@ -92,10 +92,11 @@ when you press Play.
 
 ## Mods
 
-RustCraft does not scan, install or convert mods yet (see
-[MODS.md](MODS.md)). If you put Fabric mods into an instance's `mods`
-folder, the official game loads them, and they run with the same rights as
-the game. RustCraft does not sandbox the Java game, just as other launchers
+RustCraft does not download, install or convert mods. It reads the
+metadata of the jars you put into an instance's `mods` folder to check them
+(see [MODS.md](MODS.md)): only named metadata files, with size limits,
+straight from the archive. It never runs or unpacks them. The official game
+loads the mods, and they run with the same rights as the game. RustCraft does not sandbox the Java game, just as other launchers
 do not. Install mods only from sources you trust.
 
 ## Privacy

@@ -11,7 +11,7 @@ use eframe::egui::{
 
 use rustcraft_assets::VersionKind;
 
-use crate::app::{AccountChange, LauncherApp, Level, Loaders, NewInstance, PlayState, SignIn, Tab};
+use crate::app::{AccountChange, LauncherApp, Level, Loaders, ModsView, NewInstance, PlayState, SignIn, Tab};
 use crate::config::{Engine, Graphics, Instance, Loader, NATIVE_VERSION, delete_instance, validate_name};
 use crate::game::format_ago;
 use crate::theme::{self, ACCENT, BORDER, CARD, CARD_RAISED, DANGER, MUTED, SUCCESS, TEXT, WARNING, muted};
@@ -46,6 +46,7 @@ impl LauncherApp {
         let ctx = ui.ctx().clone();
         self.new_instance_modal(&ctx);
         self.edit_modal(&ctx);
+        self.mods_modal(&ctx);
         self.delete_modal(&ctx);
         self.toasts(&ctx);
     }
@@ -309,6 +310,12 @@ impl LauncherApp {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.add_enabled(!self.busy(), theme::secondary("Edit")).clicked() {
                             self.edit = Some(inst.clone());
+                        }
+                        if inst.engine == Engine::Java
+                            && ui.add(theme::secondary("Mods")).clicked()
+                            && let Ok(dir) = inst.dir(&self.core.dirs)
+                        {
+                            self.mods = Some(ModsView::open(inst.clone(), dir.join("mods")));
                         }
                         if ui.add(theme::secondary("Open folder")).clicked()
                             && let Ok(dir) = inst.dir(&self.core.dirs)
@@ -632,6 +639,100 @@ impl LauncherApp {
         }
         if keep_open && !ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.edit = Some(draft);
+        }
+    }
+
+    fn mods_modal(&mut self, ctx: &egui::Context) {
+        let Some(mut view) = self.mods.take() else {
+            return;
+        };
+        let mut close = false;
+        modal(ctx, "mods", |ui| {
+            ui.set_width(560.0);
+            let inst = &view.instance;
+            theme::title(
+                ui,
+                &format!("Mods in {}", inst.name),
+                &format!("Minecraft {} · {}", inst.game_version, inst.loader_label()),
+            );
+            if inst.loader == Loader::Vanilla {
+                ui.colored_label(
+                    WARNING,
+                    "This instance has no mod loader, so the game ignores its mods. Create a Fabric instance to use mods.",
+                );
+            }
+            ui.label(muted(
+                "Fabric loads these mods into the official Java client. RustCraft only reads the jar files; \
+                 turning a mod off renames it to .jar.disabled.",
+            ));
+            ui.add_space(8.0);
+            if view.files.is_empty() {
+                ui.label(muted("No mods yet. Put Fabric mod .jar files into the mods folder, then rescan."));
+            }
+            let mut toggled = None;
+            for (file, check) in view.files.iter().zip(&view.checks) {
+                theme::card().inner_margin(Margin::same(14)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(file.title()).family(theme::semibold()).color(TEXT));
+                                if let Ok(meta) = &file.meta {
+                                    ui.label(muted(&meta.version));
+                                }
+                            });
+                            ui.label(muted(file.file_name()).size(12.0));
+                        });
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let label = if file.enabled { "Turn off" } else { "Turn on" };
+                            if ui.add(theme::secondary(label).fill(CARD_RAISED)).clicked() {
+                                toggled = Some((file.path.clone(), !file.enabled));
+                            }
+                            let (text, color) = if !file.enabled {
+                                ("Off", MUTED)
+                            } else if !check.problems.is_empty() {
+                                ("Will not load", DANGER)
+                            } else if !check.warnings.is_empty() {
+                                ("Warning", WARNING)
+                            } else {
+                                ("Ready", SUCCESS)
+                            };
+                            theme::badge(ui, text, color);
+                        });
+                    });
+                    for p in &check.problems {
+                        ui.colored_label(DANGER, p);
+                    }
+                    for w in &check.warnings {
+                        ui.colored_label(WARNING, w);
+                    }
+                });
+                ui.add_space(4.0);
+            }
+            if let Some((path, on)) = toggled {
+                view.error = rustcraft_mods::scan::set_enabled(&path, on).err().map(|e| e.to_string());
+                view.rescan();
+            }
+            if let Some(e) = &view.error {
+                ui.colored_label(DANGER, e);
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.add(theme::secondary("Open mods folder")).clicked() {
+                    open_path(self, &view.dir);
+                }
+                if ui.add(theme::secondary("Rescan")).clicked() {
+                    view.rescan();
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.add(theme::primary("Done")).clicked() {
+                        close = true;
+                    }
+                });
+            });
+        });
+        if !close && !ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.mods = Some(view);
         }
     }
 

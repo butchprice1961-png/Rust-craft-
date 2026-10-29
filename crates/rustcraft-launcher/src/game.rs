@@ -12,7 +12,9 @@ use tokio_util::sync::CancellationToken;
 use rustcraft_assets::java::{RUNTIME_INDEX_URL, runtime_platform};
 use rustcraft_assets::{LaunchAuth, LaunchCommand, LaunchOptions, Progress, VersionJson, build_command};
 use rustcraft_auth::AuthError;
+use rustcraft_core::DataDir;
 use rustcraft_core::fs::unix_time;
+use rustcraft_mods::scan;
 use rustcraft_platform::{discover_java, pick_java, probe_java};
 
 use crate::config::{Engine, Instance, Loader, NATIVE_VERSION};
@@ -70,6 +72,8 @@ fn fail(message: impl Into<String>) -> LaunchError {
 pub struct Prepared {
     pub command: LaunchCommand,
     pub stdin: Option<Vec<u8>>,
+    /// Mods that will not load, one line each; the launch goes ahead.
+    pub mod_problems: Vec<String>,
 }
 
 /// Everything up to (not including) starting the process: account, loader,
@@ -87,7 +91,25 @@ pub async fn prepare(
         return prepare_native(core, inst).await;
     }
     let command = prepare_java(core, inst, manifest, offline, progress, cancel, stage).await?;
-    Ok(Prepared { command, stdin: None })
+    let (inst, dirs) = (inst.clone(), core.dirs.clone());
+    let mod_problems = tokio::task::spawn_blocking(move || mod_problems(&inst, &dirs)).await?;
+    Ok(Prepared { command, stdin: None, mod_problems })
+}
+
+/// "Title: first problem" for each enabled mod that will not load.
+pub fn mod_problems(inst: &Instance, dirs: &DataDir) -> Vec<String> {
+    let Ok(dir) = inst.dir(dirs) else { return Vec::new() };
+    let mods = scan::scan(&dir.join("mods"));
+    let checks = scan::check(&mods, &mod_target(inst));
+    mods.iter().zip(checks).filter_map(|(m, c)| Some(format!("{}: {}", m.title(), c.problems.first()?))).collect()
+}
+
+pub fn mod_target(inst: &Instance) -> scan::Target<'_> {
+    let fabric_loader = match &inst.loader {
+        Loader::Fabric { version } => Some(version.as_str()),
+        Loader::Vanilla => None,
+    };
+    scan::Target { game_version: &inst.game_version, fabric_loader }
 }
 
 /// The native engine needs no download: it uses the instance's resource
@@ -131,6 +153,7 @@ async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, Launch
     Ok(Prepared {
         command: LaunchCommand::new(exe, vec!["--spec-stdin".into()], game_dir, String::new()),
         stdin: Some(spec.to_string().into_bytes()),
+        mod_problems: Vec::new(),
     })
 }
 
