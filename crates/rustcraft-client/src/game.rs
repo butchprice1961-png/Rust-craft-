@@ -340,7 +340,7 @@ impl Game {
                     }
                 }
             }
-            (Some(_), Some(_)) => {
+            (Some(hit), Some(pos)) if pos == hit.block => {
                 let r = self.remote().unwrap();
                 let d = r.digging.as_mut().unwrap();
                 d.elapsed += 1;
