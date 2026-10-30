@@ -24,7 +24,7 @@ how it was checked. Details are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md
 | Fabric Loader instances | Implemented; tested with a hand-written Fabric profile. Not yet tested live |
 | Forge, NeoForge, Quilt | Not supported |
 | Native engine (RustCraft engine) | Experimental: 1.8.9 local worlds in creative mode. No survival in local worlds, no mobs, inventory screen or sound yet |
-| Native engine multiplayer (1.8 servers, protocol 47) | Experimental: joins offline- and online-mode servers, shows the world, chat, digging and placing. Other players and mobs are not shown yet. Tested against RustCraft's own test servers only, not yet against a real server implementation |
+| Native engine multiplayer (1.8 servers, protocol 47) | Experimental: joins offline- and online-mode servers; the world, chat, digging and placing; other players and mobs as outlined boxes with name tags (no models yet). Tested against RustCraft's own test servers only, not yet against a real server implementation |
 | Mod checks for Fabric instances (loader, versions, dependencies), turning mods on and off | Implemented; tested with generated jars |
 | Mod conversion for the native engine | Not implemented yet |
 | Windows installer, macOS dmg, Linux AppImage | Release workflow written; it runs on a tag or manual dispatch and has not run yet |

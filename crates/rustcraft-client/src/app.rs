@@ -14,7 +14,9 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
-use rustcraft_renderer::{Camera, Renderer, Scene, TextureData, render_to_image, sky};
+use glam::Vec3;
+use rustcraft_protocol::EntityKind;
+use rustcraft_renderer::{Camera, LineVertex, Renderer, Scene, TextureData, push_box, render_to_image, sky};
 
 use crate::game::Game;
 use crate::hud::{Action, Hud, Menu};
@@ -313,12 +315,50 @@ impl Running {
         (scene, self.game.selection_boxes())
     }
 
+    /// Players, mobs and objects on a server, drawn as outlined boxes (there
+    /// are no entity models yet), and players' name tags in screen points.
+    fn entity_overlay(&self, camera: &Camera) -> (Vec<LineVertex>, Vec<(egui::Pos2, String)>) {
+        let (mut lines, mut labels) = (Vec::new(), Vec::new());
+        let Some(r) = self.game.remote_ref() else { return (lines, labels) };
+        let view_proj = camera.view_proj();
+        let scale = self.window.scale_factor() as f32;
+        let (w, h) = (self.config.width as f32 / scale, self.config.height as f32 / scale);
+        for e in r.entities.values() {
+            let rel = (e.pos - camera.pos).as_vec3();
+            if rel.length() > camera.far {
+                continue;
+            }
+            let (width, height) = e.kind.size();
+            let half = Vec3::new(width / 2.0, 0.0, width / 2.0);
+            let color = match e.kind {
+                EntityKind::Player(_) => [1.0, 1.0, 1.0, 0.9],
+                EntityKind::Mob(50..=68) => [1.0, 0.35, 0.3, 0.9],
+                EntityKind::Mob(_) => [0.45, 0.9, 0.45, 0.9],
+                _ => [1.0, 0.85, 0.3, 0.9],
+            };
+            push_box(&mut lines, rel - half, rel + half + Vec3::new(0.0, height, 0.0), color);
+            if let EntityKind::Player(uuid) = e.kind
+                && let Some(name) = r.names.get(&uuid)
+                && rel.length() < 64.0
+            {
+                let clip = view_proj * (rel + Vec3::new(0.0, height + 0.4, 0.0)).extend(1.0);
+                if clip.w > 0.0 {
+                    let ndc = clip.truncate() / clip.w;
+                    labels.push((egui::pos2((ndc.x + 1.0) / 2.0 * w, (1.0 - ndc.y) / 2.0 * h), name.clone()));
+                }
+            }
+        }
+        (lines, labels)
+    }
+
     fn screenshot(&mut self, settings: &Settings, path: Option<std::path::PathBuf>) -> Option<std::path::PathBuf> {
         let (w, h) = (self.config.width, self.config.height);
         let (mut scene, selection) = self.scene(settings, 1.0);
         if let Some((pos, boxes)) = &selection {
             scene.selection = Some((*pos, boxes.as_slice()));
         }
+        let (entity_lines, _) = self.entity_overlay(&scene.camera);
+        scene.lines = &entity_lines;
         let pixels = render_to_image(&mut self.renderer, &scene, w, h);
         let path = path.unwrap_or_else(|| {
             let dir = std::env::current_dir().unwrap_or_default().join("screenshots");
@@ -390,6 +430,9 @@ impl Running {
         {
             scene.selection = Some((*pos, boxes.as_slice()));
         }
+        let (entity_lines, labels) = self.entity_overlay(&scene.camera);
+        scene.lines = &entity_lines;
+        self.hud.labels = labels;
         let device = self.renderer.device().clone();
         let queue = self.renderer.queue().clone();
         let mut encoder = device.create_command_encoder(&Default::default());

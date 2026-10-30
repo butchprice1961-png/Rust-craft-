@@ -27,7 +27,7 @@ impl<'a> Buf<'a> {
         Ok(head)
     }
 
-    fixed!(u8: u8, i8: i8, u16: u16, i16: i16, i32: i32, i64: i64, f32: f32, f64: f64);
+    fixed!(u8: u8, i8: i8, u16: u16, i16: i16, i32: i32, i64: i64, u64: u64, f32: f32, f64: f64);
 
     pub fn bool(&mut self) -> Result<bool> {
         Ok(self.u8()? != 0)

@@ -1,6 +1,6 @@
 //! A tiny offline-mode protocol 47 server for trying RustCraft's
-//! multiplayer client: a flat creative world, chat echo, and block
-//! breaking and placing. It is a test tool, not a game server: no physics,
+//! multiplayer client: a flat creative world with another player and a
+//! wandering pig, chat echo, and block breaking and placing. It is a test tool, not a game server: no physics,
 //! no mobs, no saving, no authentication.
 //!
 //! Usage: cargo run -p rustcraft-protocol --example flat_server [port]
@@ -154,13 +154,53 @@ fn serve(stream: TcpStream) -> Result<()> {
     };
     send(0x02, chat(&format!("Welcome, {name}. This is RustCraft's test server.")))?;
 
+    // Company: a player called Steve (with a tab-list entry) and a pig.
+    let steve: u128 = 0x0000_0000_0000_3000_8000_0000_0000_0002;
+    send(
+        0x38,
+        body(|v| {
+            v.varint(0).varint(1).be(&steve.to_be_bytes()).string("Steve").varint(0).varint(1).varint(20).be(&[0]);
+        }),
+    )?;
+    let fixed = |v: &mut Vec<u8>, x: f64, y: f64, z: f64| {
+        for c in [x, y, z] {
+            v.be(&((c * 32.0) as i32).to_be_bytes());
+        }
+    };
+    send(
+        0x0C,
+        body(|v| {
+            v.varint(2).be(&steve.to_be_bytes());
+            fixed(v, 3.5, 5.0, 4.5);
+            v.be(&[0, 0]).be(&0i16.to_be_bytes()).be(&[0x7f]);
+        }),
+    )?;
+    send(
+        0x0F,
+        body(|v| {
+            v.varint(3).be(&[90]);
+            fixed(v, -2.5, 5.0, 4.5);
+            v.be(&[0, 0, 0]).be(&[0; 6]).be(&[0x7f]);
+        }),
+    )?;
+
+    // Keep-alives every two seconds; the pig wanders back and forth.
     let keep_alive = w.clone();
     std::thread::spawn(move || {
         for n in 1.. {
-            std::thread::sleep(Duration::from_secs(2));
-            let mut p = Vec::new();
-            p.varint(n);
-            if keep_alive.lock().unwrap().write(0x00, &p).is_err() {
+            std::thread::sleep(Duration::from_millis(100));
+            let step: i8 = if (n / 20) % 2 == 0 { 4 } else { -4 };
+            let mut moved = Vec::new();
+            moved.varint(3).be(&[step as u8, 0, 0]).be(&[1]);
+            let mut writer = keep_alive.lock().unwrap();
+            let alive = if n % 20 == 0 {
+                let mut p = Vec::new();
+                p.varint(n);
+                writer.write(0x00, &p)
+            } else {
+                Ok(())
+            };
+            if alive.and_then(|()| writer.write(0x15, &moved)).is_err() {
                 return;
             }
         }

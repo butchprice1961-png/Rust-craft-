@@ -111,7 +111,8 @@ RustCraft was built.
 | Survival and adventure mode | Digging with 1.8's timing for the held tool; placing blocks from the server's hotbar; health and food shown as numbers; death screen with respawn |
 | Chat | Receiving (including the common translation keys) and sending messages and commands (T, /) |
 | Disconnects | The server's reason is shown |
-| Not yet available | Other players, mobs, items and other entities; the inventory screen and containers; signs' text; weather; sounds; Nether and End skies; server addresses that rely on SRV records; walking through blocks in spectator mode; the server list |
+| Other players, mobs and objects | Shown as outlined boxes of their real size (white: players, red: hostile mobs, green: other mobs, yellow: items and other objects), with players' name tags. There are no entity models or skins yet |
+| Not yet available | Entity models, skins and animations; attacking entities; the inventory screen and containers; signs' text; weather; sounds; Nether and End skies; server addresses that rely on SRV records; walking through blocks in spectator mode; the server list |
 
 ## Platforms
 

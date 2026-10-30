@@ -38,6 +38,8 @@ pub struct Hud {
     pub show_debug: bool,
     pub hidden: bool,
     pub chat_input: String,
+    /// Name tags of players on a server, in screen points.
+    pub labels: Vec<(Pos2, String)>,
     /// Set when the chat opens: the key that opened it may arrive as text.
     pub chat_fresh: bool,
     icons: HashMap<BlockState, egui::TextureHandle>,
@@ -55,6 +57,7 @@ impl Hud {
             show_debug: false,
             hidden: false,
             chat_input: String::new(),
+            labels: Vec::new(),
             chat_fresh: false,
             icons: HashMap::new(),
             frames: VecDeque::new(),
@@ -218,6 +221,12 @@ impl Hud {
             );
         }
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("status")));
+        for (pos, name) in &self.labels {
+            let galley = painter.layout_no_wrap(name.clone(), FontId::proportional(14.0), Color32::WHITE);
+            let rect = Align2::CENTER_BOTTOM.anchor_size(*pos, galley.size()).expand(3.0);
+            painter.rect_filled(rect, 2.0, Color32::from_black_alpha(110));
+            painter.galley(rect.shrink(3.0).min, galley, Color32::WHITE);
+        }
         if let Some((at, text)) = &r.action_bar
             && at.elapsed() < Duration::from_secs(3)
         {

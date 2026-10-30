@@ -18,7 +18,7 @@ use rustcraft_world::{Hit, World};
 
 use crate::local::LocalWorld;
 use crate::player::{MoveInput, Player};
-use crate::remote::{Digging, Remote, block_of, item_of};
+use crate::remote::{Digging, Entity, Remote, block_of, item_of};
 
 /// Where the world comes from.
 pub enum Source {
@@ -552,6 +552,32 @@ impl Game {
                 self.remote().unwrap().action_bar = Some((Instant::now(), text));
             }
             Clientbound::Chat { text, .. } => self.remote().unwrap().say(text),
+            Clientbound::SpawnEntity { id, kind, pos, .. } => {
+                self.remote().unwrap().entities.insert(id, Entity { kind, pos });
+            }
+            Clientbound::MoveEntity { id, delta, .. } => {
+                if let Some(e) = self.remote().unwrap().entities.get_mut(&id) {
+                    e.pos += delta;
+                }
+            }
+            Clientbound::TeleportEntity { id, pos, .. } => {
+                if let Some(e) = self.remote().unwrap().entities.get_mut(&id) {
+                    e.pos = pos;
+                }
+            }
+            Clientbound::RemoveEntities(ids) => {
+                let r = self.remote().unwrap();
+                for id in ids {
+                    r.entities.remove(&id);
+                }
+            }
+            Clientbound::PlayerList { added, removed } => {
+                let r = self.remote().unwrap();
+                r.names.extend(added);
+                for uuid in removed {
+                    r.names.remove(&uuid);
+                }
+            }
             _ => {}
         }
     }
@@ -560,6 +586,9 @@ impl Game {
         self.world = World::new(sky);
         self.dirty.clear();
         self.clear_renderer = true;
+        if let Some(r) = self.remote() {
+            r.entities.clear();
+        }
     }
 
     fn clear_presses(&mut self) {
@@ -906,6 +935,24 @@ mod multiplayer_tests {
             game.tick();
         }
         assert!(game.world.block(IVec3::new(1, 3, 0)).is_air());
+
+        // Entities: spawned, moved, named through the tab list, removed.
+        let steve = 7u128;
+        game.pending.push_back(Clientbound::PlayerList { added: vec![(steve, "Steve".into())], removed: vec![] });
+        game.pending.push_back(Clientbound::SpawnEntity {
+            id: 2,
+            kind: rustcraft_protocol::EntityKind::Player(steve),
+            pos: DVec3::new(3.0, 4.0, 3.0),
+            yaw: 0.0,
+        });
+        game.pending.push_back(Clientbound::MoveEntity { id: 2, delta: DVec3::new(0.5, 0.0, 0.0), yaw: None });
+        game.apply_pending(Duration::MAX);
+        let r = game.remote_ref().unwrap();
+        assert_eq!(r.entities[&2].pos, DVec3::new(3.5, 4.0, 3.0));
+        assert_eq!(r.names[&steve], "Steve");
+        game.pending.push_back(Clientbound::RemoveEntities(vec![2]));
+        game.apply_pending(Duration::MAX);
+        assert!(game.remote_ref().unwrap().entities.is_empty());
 
         std::thread::sleep(Duration::from_millis(200));
         let packets: Vec<(i32, Vec<u8>)> = received.try_iter().collect();

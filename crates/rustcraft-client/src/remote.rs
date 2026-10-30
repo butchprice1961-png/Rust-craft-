@@ -2,7 +2,7 @@
 //! and decodes packets; the game thread applies them and sends what the
 //! player does.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::net::{Shutdown, TcpStream};
 use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
@@ -13,7 +13,7 @@ use glam::DVec3;
 use rustcraft_protocol::conn::PacketWriter;
 use rustcraft_protocol::login::SESSION_JOIN;
 use rustcraft_protocol::packets::decode;
-use rustcraft_protocol::{Clientbound, GameMode, Item, Profile, Session, join, send};
+use rustcraft_protocol::{Clientbound, EntityKind, GameMode, Item, Profile, Session, join, send};
 use rustcraft_world::block::{BlockState, props};
 
 type Writer = Arc<Mutex<PacketWriter<TcpStream>>>;
@@ -29,6 +29,12 @@ pub enum Status {
     Playing,
     /// Why the session ended, for the disconnect screen.
     Closed(String),
+}
+
+/// Another player, a mob or an object the server shows us.
+pub struct Entity {
+    pub kind: EntityKind,
+    pub pos: DVec3,
 }
 
 /// A block being dug in survival mode.
@@ -61,6 +67,9 @@ pub struct Remote {
     pub sent_flying: bool,
     pub sent_sneaking: bool,
     pub sent_sprinting: bool,
+    pub entities: HashMap<i32, Entity>,
+    /// Tab-list names by UUID, for players' name tags.
+    pub names: HashMap<u128, String>,
 }
 
 impl Remote {
@@ -151,6 +160,8 @@ impl Remote {
             sent_flying: false,
             sent_sneaking: false,
             sent_sprinting: false,
+            entities: HashMap::new(),
+            names: HashMap::new(),
         }
     }
 

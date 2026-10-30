@@ -77,9 +77,92 @@ pub enum Clientbound {
     },
     /// Player inventory (window 0) slots, 0–44; hotbar is 36–44.
     Slots(Vec<(usize, Option<Item>)>),
+    /// A player, mob, object or experience orb came into view.
+    SpawnEntity {
+        id: i32,
+        kind: EntityKind,
+        pos: DVec3,
+        yaw: f32,
+    },
+    /// Relative movement and, if it changed, the new yaw.
+    MoveEntity {
+        id: i32,
+        delta: DVec3,
+        yaw: Option<f32>,
+    },
+    TeleportEntity {
+        id: i32,
+        pos: DVec3,
+        yaw: f32,
+    },
+    RemoveEntities(Vec<i32>),
+    /// Tab-list changes: players added (UUID, name) and removed.
+    PlayerList {
+        added: Vec<(u128, String)>,
+        removed: Vec<u128>,
+    },
     Disconnect(String),
     SetCompression(Option<usize>),
     Ignored,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityKind {
+    Player(u128),
+    /// Mob type id (50 creeper … 120 villager).
+    Mob(u8),
+    /// Object type id (1 boat, 2 item, 60 arrow …).
+    Object(u8),
+    ExperienceOrb,
+}
+
+impl EntityKind {
+    /// Bounding box (width, height) in blocks, as in 1.8.
+    pub fn size(self) -> (f32, f32) {
+        match self {
+            EntityKind::Player(_) => (0.6, 1.8),
+            EntityKind::Mob(id) => match id {
+                50 => (0.6, 1.7),
+                52 => (1.4, 0.9),
+                53 => (3.6, 10.8),
+                55 | 62 => (1.0, 1.0),
+                56 => (4.0, 4.0),
+                58 => (0.6, 2.9),
+                59 => (0.7, 0.5),
+                60 => (0.4, 0.3),
+                63 => (16.0, 8.0),
+                64 => (0.9, 3.5),
+                65 => (0.5, 0.9),
+                67 => (0.4, 0.3),
+                68 => (0.85, 0.85),
+                90 => (0.9, 0.9),
+                91 | 92 | 96 => (0.9, 1.3),
+                93 => (0.4, 0.7),
+                94 => (0.95, 0.95),
+                95 | 98 => (0.6, 0.8),
+                97 => (0.7, 1.9),
+                99 => (1.4, 2.9),
+                100 => (1.4, 1.6),
+                101 => (0.6, 0.7),
+                _ => (0.6, 1.95),
+            },
+            EntityKind::Object(1) => (1.5, 0.6),
+            EntityKind::Object(10) => (0.98, 0.7),
+            EntityKind::Object(50 | 70) => (0.98, 0.98),
+            EntityKind::Object(78) => (0.5, 1.975),
+            EntityKind::Object(_) => (0.25, 0.25),
+            EntityKind::ExperienceOrb => (0.5, 0.5),
+        }
+    }
+}
+
+/// Entity positions are fixed-point numbers with 5 fraction bits.
+fn fixed(b: &mut Buf) -> Result<DVec3> {
+    Ok(DVec3::new(b.i32()? as f64, b.i32()? as f64, b.i32()? as f64) / 32.0)
+}
+
+fn angle(b: &mut Buf) -> Result<f32> {
+    Ok(b.u8()? as f32 * 360.0 / 256.0)
 }
 
 /// Decodes one play packet. `sky` says whether the current dimension has
@@ -176,6 +259,82 @@ pub fn decode(id: i32, body: &[u8], sky: bool) -> Result<Clientbound> {
                 }
             }
             Clientbound::Slots(slots)
+        }
+        0x0C => {
+            let id = b.varint()?;
+            let uuid = ((b.u64()? as u128) << 64) | b.u64()? as u128;
+            let pos = fixed(&mut b)?;
+            Clientbound::SpawnEntity { id, kind: EntityKind::Player(uuid), pos, yaw: angle(&mut b)? }
+        }
+        0x0E => {
+            let (id, kind) = (b.varint()?, EntityKind::Object(b.u8()?));
+            let pos = fixed(&mut b)?;
+            let _pitch = b.u8()?;
+            Clientbound::SpawnEntity { id, kind, pos, yaw: angle(&mut b)? }
+        }
+        0x0F => {
+            let (id, kind) = (b.varint()?, EntityKind::Mob(b.u8()?));
+            let pos = fixed(&mut b)?;
+            Clientbound::SpawnEntity { id, kind, pos, yaw: angle(&mut b)? }
+        }
+        0x11 => {
+            let id = b.varint()?;
+            Clientbound::SpawnEntity { id, kind: EntityKind::ExperienceOrb, pos: fixed(&mut b)?, yaw: 0.0 }
+        }
+        0x13 => {
+            let n = b.length(65536)?;
+            Clientbound::RemoveEntities((0..n).map(|_| b.varint()).collect::<Result<_>>()?)
+        }
+        0x15 | 0x17 => {
+            let entity = b.varint()?;
+            let delta = DVec3::new(b.i8()? as f64, b.i8()? as f64, b.i8()? as f64) / 32.0;
+            let yaw = if id == 0x17 { Some(angle(&mut b)?) } else { None };
+            Clientbound::MoveEntity { id: entity, delta, yaw }
+        }
+        0x16 => {
+            let id = b.varint()?;
+            Clientbound::MoveEntity { id, delta: DVec3::ZERO, yaw: Some(angle(&mut b)?) }
+        }
+        0x18 => {
+            let id = b.varint()?;
+            let pos = fixed(&mut b)?;
+            Clientbound::TeleportEntity { id, pos, yaw: angle(&mut b)? }
+        }
+        0x38 => {
+            let action = b.varint()?;
+            let n = b.length(4096)?;
+            let (mut added, mut removed) = (Vec::new(), Vec::new());
+            for _ in 0..n {
+                let uuid = ((b.u64()? as u128) << 64) | b.u64()? as u128;
+                match action {
+                    0 => {
+                        let name = b.string(16)?;
+                        for _ in 0..b.length(64)? {
+                            b.string(32767)?;
+                            b.string(32767)?;
+                            if b.bool()? {
+                                b.string(32767)?;
+                            }
+                        }
+                        b.varint()?;
+                        b.varint()?;
+                        if b.bool()? {
+                            b.string(32767)?;
+                        }
+                        added.push((uuid, name));
+                    }
+                    1 | 2 => {
+                        b.varint()?;
+                    }
+                    3 => {
+                        if b.bool()? {
+                            b.string(32767)?;
+                        }
+                    }
+                    _ => removed.push(uuid),
+                }
+            }
+            Clientbound::PlayerList { added, removed }
         }
         0x39 => {
             let flags = b.u8()?;
@@ -403,6 +562,40 @@ mod tests {
         let mut unload = Vec::new();
         unload.be(&5i32.to_be_bytes()).be(&6i32.to_be_bytes()).be(&[1]).be(&0u16.to_be_bytes()).varint(0);
         assert!(matches!(decode(0x21, &unload, true).unwrap(), Clientbound::Unload(5, 6)));
+    }
+
+    #[test]
+    fn entities_and_the_player_list() {
+        let uuid: u128 = 0x069a79f4_44e9_4726_a5be_fca90e38aaf5;
+        let mut body = Vec::new();
+        body.varint(42).be(&uuid.to_be_bytes());
+        body.be(&(32 * 10i32).to_be_bytes()).be(&(32 * 64i32 + 16).to_be_bytes()).be(&(-32 * 5i32).to_be_bytes());
+        body.be(&[64, 0]).be(&0i16.to_be_bytes()).be(&[0x7f]); // yaw 90°, pitch, item, metadata end
+        let Clientbound::SpawnEntity { id, kind, pos, yaw } = decode(0x0C, &body, true).unwrap() else { panic!() };
+        assert_eq!((id, kind, pos, yaw), (42, EntityKind::Player(uuid), DVec3::new(10.0, 64.5, -5.0), 90.0));
+
+        let mut body = Vec::new();
+        body.varint(42).be(&[16, (-32i8) as u8, 0]).be(&[128, 0]).be(&[1]);
+        let Clientbound::MoveEntity { delta, yaw, .. } = decode(0x17, &body, true).unwrap() else { panic!() };
+        assert_eq!((delta, yaw), (DVec3::new(0.5, -1.0, 0.0), Some(180.0)));
+        let Clientbound::MoveEntity { yaw, .. } = decode(0x15, &body[..5], true).unwrap() else { panic!() };
+        assert_eq!(yaw, None);
+
+        let mut body = Vec::new();
+        body.varint(2).varint(42).varint(7);
+        assert!(matches!(decode(0x13, &body, true).unwrap(), Clientbound::RemoveEntities(ids) if ids == vec![42, 7]));
+
+        let mut body = Vec::new();
+        body.varint(0).varint(1).be(&uuid.to_be_bytes()).string("Notch");
+        body.varint(1).string("textures").string("e30=").be(&[1]).string("sig");
+        body.varint(0).varint(35).be(&[0]);
+        let Clientbound::PlayerList { added, removed } = decode(0x38, &body, true).unwrap() else { panic!() };
+        assert_eq!((added, removed.len()), (vec![(uuid, "Notch".to_string())], 0));
+        let mut body = Vec::new();
+        body.varint(4).varint(1).be(&uuid.to_be_bytes());
+        let Clientbound::PlayerList { removed, .. } = decode(0x38, &body, true).unwrap() else { panic!() };
+        assert_eq!(removed, vec![uuid]);
+        assert_eq!(EntityKind::Mob(91).size(), (0.9, 1.3));
     }
 
     #[test]

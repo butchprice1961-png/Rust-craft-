@@ -103,7 +103,8 @@ On a server:
 In survival mode, hold the left mouse button to dig; the bar under the
 crosshair shows the progress. The hotbar shows the blocks in your server
 inventory. Health and food are shown above it. Other players, mobs and items
-are not shown yet; see
+appear as outlined boxes (players with their names), because the engine has
+no entity models yet; see
 [COMPATIBILITY.md](COMPATIBILITY.md#rustcraft-engine-on-servers).
 
 ### Options

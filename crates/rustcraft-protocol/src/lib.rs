@@ -10,7 +10,7 @@ pub mod packets;
 
 pub use codec::Item;
 pub use login::{Joined, Profile, Session, join};
-pub use packets::{Clientbound, GameMode, send};
+pub use packets::{Clientbound, EntityKind, GameMode, send};
 
 /// Minecraft 1.8 to 1.8.9.
 pub const PROTOCOL_VERSION: i32 = 47;
