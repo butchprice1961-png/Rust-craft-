@@ -42,7 +42,8 @@ tests and `crates/*/tests/`).
    - Official client: get a valid session (renew it if needed), install or
      verify the version's files, choose Java, and build the command line.
    - RustCraft engine: find `rustcraft-client` next to the launcher, collect
-     resource packs, and write a JSON launch spec.
+     resource packs, and write a JSON launch spec. For a server, first ask
+     it for its version, and get a session if an account is signed in.
 2. **Spawn.** The child's standard output and error go to
    `logs/<instance>-<time>.log`, with the token replaced by `<redacted>`.
    The engine receives its spec on standard input.

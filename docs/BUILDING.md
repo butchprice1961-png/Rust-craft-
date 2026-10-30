@@ -56,6 +56,8 @@ Useful settings:
 | `rustcraft --smoke-test <png> [--smoke-tab <name>] [--smoke-launch]` | Open the launcher, save a screenshot and exit; with `--smoke-launch`, first play the selected instance |
 | `rustcraft-client --screenshot <png>` | Load a world, save a screenshot and exit |
 | `rustcraft-client --benchmark <seconds>` | See [BENCHMARKS.md](BENCHMARKS.md) |
+| `rustcraft-client --server <host[:port]> --name <name>` | Join an offline-mode 1.8 server without the launcher |
+| `cargo run -p rustcraft-protocol --example flat_server [port]` | A small offline-mode test server (flat world, another player, a pig, chat echo) |
 
 ## Test
 
