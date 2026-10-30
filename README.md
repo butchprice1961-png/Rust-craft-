@@ -17,7 +17,7 @@ how it was checked. Details are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md
 
 | Area | State |
 |---|---|
-| Launcher UI, instances, settings, logs, crash reports | Working on Linux, where CI renders it on a virtual display. Unit tests also pass on Windows and macOS, but the UI has not been run there yet |
+| Launcher UI, instances, settings, logs, crash reports | Working on Linux, where CI renders every push on a virtual display. The release workflow starts the packaged launcher on Windows and macOS runners and checks that it renders |
 | Launcher lifecycle (close while playing, reopen on exit, single instance) | Working on Linux; tested end to end in CI with a stand-in game and with the native engine |
 | Microsoft sign-in (browser + PKCE, Xbox Live, XSTS, ownership, profile) | Implemented; tested against a mock of every service. Not yet tested against the live services |
 | Official game downloads and launch, 1.8 to latest | Implemented; tested with hand-written 1.8.9 and 1.21.4 metadata in Mojang's format and a mock download server. Not yet tested with real game files |
@@ -27,7 +27,7 @@ how it was checked. Details are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md
 | Native engine multiplayer (1.8 servers, protocol 47) | Experimental: joins offline- and online-mode servers; the world, chat, digging and placing; other players and mobs as outlined boxes with name tags (no models yet). Tested against RustCraft's own test servers only, not yet against a real server implementation |
 | Mod checks for Fabric instances (loader, versions, dependencies), turning mods on and off | Implemented; tested with generated jars |
 | Mod conversion for the native engine | Not implemented yet |
-| Windows installer, macOS dmg, Linux AppImage | Release workflow written; it runs on a tag or manual dispatch and has not run yet |
+| Windows installer and zip, macOS dmg (universal), Linux AppImage | Built by the release workflow (on a version tag or by hand), with SHA256SUMS.txt. Each package is installed or mounted on a CI runner, and the launcher and the engine are started from it. Packages are unsigned until signing certificates are configured |
 
 ## Install
 

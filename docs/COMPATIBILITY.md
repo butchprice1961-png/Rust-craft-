@@ -23,7 +23,7 @@ services yet. The environment RustCraft was built in could not reach them
 | Single instance (a second launch shows a message and exits) | Tested | Unit test of the lock |
 | Close while playing, reopen on game exit | Verified on Linux | `scripts/lifecycle-smoke.sh` in CI: a stand-in Java game, and the real native engine |
 | Crash and early-exit reporting | Verified on Linux | Lifecycle test in CI; early exit checked by hand with a world the native engine refuses, which shows the engine's reason |
-| Windows and macOS | Tested | Unit tests pass on `windows-2022` and `macos-14` in CI. The window and packages have not been run there yet; the release workflow does that and has not run yet |
+| Windows and macOS | Tested | Unit tests pass on `windows-2022` and `macos-14` in CI. The release workflow installs the Windows package (and uninstalls it) and mounts the macOS dmg, then starts the launcher and the engine from them and saves screenshots. Nobody has used them interactively yet |
 
 ## Official game versions (Java Edition, run with Java)
 
@@ -120,8 +120,8 @@ RustCraft was built.
 | Platform | Build | Run |
 |---|---|---|
 | Linux x86_64 | CI | Verified (Ubuntu 22.04 in CI, Ubuntu 24.04 locally). Needs X11 or Wayland, Vulkan or OpenGL drivers, and `libxkbcommon-x11` on X11 |
-| Windows x86_64 | CI | Tested (unit tests only) |
-| macOS arm64 and x86_64 | CI | Tested (unit tests only) |
+| Windows x86_64 | CI | Tested: unit tests, and the installed package starts and renders on a CI runner (software rendering) |
+| macOS arm64 and x86_64 | CI | Tested: unit tests, and the universal app starts and renders from the dmg on an Apple Silicon CI runner |
 
 ## Not yet verified
 
