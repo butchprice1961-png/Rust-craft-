@@ -89,7 +89,7 @@ run locally:
 
 | Platform | Command | Output |
 |---|---|---|
-| Linux | `scripts/package-linux.sh [path/to/appimagetool]` | `dist/RustCraft-<version>-x86_64.AppImage` |
+| Linux | `scripts/package-linux.sh [path/to/appimagetool]`; appimagetool needs `desktop-file-validate` (Debian/Ubuntu: `desktop-file-utils`) | `dist/RustCraft-<version>-x86_64.AppImage` |
 | macOS | `scripts/package-macos.sh`, after release builds for `aarch64-apple-darwin` and `x86_64-apple-darwin` | Universal `dist/RustCraft.app` and `dist/RustCraft-<version>-macos.dmg` |
 | Windows | `makensis /DVERSION=<version> /DSRC=<dir with the .exe files> /DOUT=<setup.exe> packaging\windows\installer.nsi` | A per-user installer |
 

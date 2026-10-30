@@ -20,7 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri libxkbcommon-x11-0
+      # desktop-file-utils: appimagetool validates the .desktop file with it.
+      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libgl1-mesa-dri libxkbcommon-x11-0 desktop-file-utils
       - run: cargo build --release --locked --workspace --bins
       - name: Fetch appimagetool 1.9.0
         run: |
