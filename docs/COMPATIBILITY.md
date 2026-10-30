@@ -110,9 +110,10 @@ RustCraft was built.
 | Creative mode | Instant breaking; placing any block from the hotbar (the server is told which item it is) |
 | Survival and adventure mode | Digging with 1.8's timing for the held tool; placing blocks from the server's hotbar; health and food shown as numbers; death screen with respawn |
 | Chat | Receiving (including the common translation keys) and sending messages and commands (T, /) |
+| Server version | Before joining, the launcher asks the server for its status, like the server list does. A server that reports another protocol is refused with its version named, instead of a kick for an outdated client. Multi-version servers that accept 1.8 clients answer with protocol 47 and are joined |
 | Disconnects | The server's reason is shown |
 | Other players, mobs and objects | Shown as outlined boxes of their real size (white: players, red: hostile mobs, green: other mobs, yellow: items and other objects), with players' name tags. There are no entity models or skins yet |
-| Not yet available | Entity models, skins and animations; attacking entities; the inventory screen and containers; signs' text; weather; sounds; Nether and End skies; server addresses that rely on SRV records; walking through blocks in spectator mode; the server list |
+| Not yet available | Entity models, skins and animations; attacking entities; the inventory screen and containers; signs' text; weather; sounds; Nether and End skies; server addresses that rely on SRV records; walking through blocks in spectator mode; a server list screen |
 
 ## Platforms
 

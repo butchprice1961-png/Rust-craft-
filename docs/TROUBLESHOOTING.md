@@ -106,6 +106,10 @@ the server's address works in the official client but not here, the server
 may rely on a DNS SRV record, which RustCraft does not look up yet; use the
 server's host name and port directly.
 
+**"… runs Minecraft 1.x (protocol N). The RustCraft engine only joins
+Minecraft 1.8 servers"** The server is for another game version. Join it
+with an instance that uses the official Java client and that version.
+
 **"Disconnected: …"** The server closed the connection and gave this
 reason, for example a kick, a ban, a whitelist or a wrong game version. The
 engine only joins servers for Minecraft 1.8 to 1.8.9.

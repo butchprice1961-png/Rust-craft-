@@ -107,12 +107,53 @@ fn session_join(session: &Session, server_hash: &str) -> Result<()> {
     }
 }
 
+/// What a server reports in the multiplayer server list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServerStatus {
+    pub version: String,
+    pub protocol: i32,
+    pub players: (i64, i64),
+    pub description: String,
+}
+
+fn connect(host: &str, port: u16, timeout: Duration) -> Result<TcpStream> {
+    let addr = (host, port).to_socket_addrs()?.next().ok_or(Error::BadAddress)?;
+    let stream = TcpStream::connect_timeout(&addr, timeout)?;
+    stream.set_nodelay(true)?;
+    stream.set_read_timeout(Some(timeout.max(Duration::from_secs(5))))?;
+    Ok(stream)
+}
+
+/// Asks a server for its status (the server-list ping), without logging in.
+pub fn status(address: &str, timeout: Duration) -> Result<ServerStatus> {
+    let (host, port) = split_address(address)?;
+    let stream = connect(&host, port, timeout)?;
+    stream.set_read_timeout(Some(timeout))?;
+    let mut writer = PacketWriter::new(stream.try_clone()?);
+    let mut reader = PacketReader::new(stream);
+    let mut handshake = Vec::new();
+    handshake.varint(PROTOCOL_VERSION).string(&host).be(&port.to_be_bytes()).varint(1);
+    writer.write(0x00, &handshake)?;
+    writer.write(0x00, &[])?;
+    let (id, body) = reader.read()?;
+    if id != 0x00 {
+        return Err(Error::Malformed("unexpected status response"));
+    }
+    let json: serde_json::Value =
+        serde_json::from_str(&Buf(&body).string(32767)?).map_err(|_| Error::Malformed("status is not JSON"))?;
+    let players = &json["players"];
+    Ok(ServerStatus {
+        version: json["version"]["name"].as_str().unwrap_or_default().to_string(),
+        protocol: json["version"]["protocol"].as_i64().unwrap_or(-1) as i32,
+        players: (players["online"].as_i64().unwrap_or(0), players["max"].as_i64().unwrap_or(0)),
+        description: chat_text(&json["description"].to_string()),
+    })
+}
+
 /// Connects and logs in; on success the connection is in the play state.
 pub fn join(address: &str, profile: &Profile) -> Result<Joined> {
     let (host, port) = split_address(address)?;
-    let addr = (host.as_str(), port).to_socket_addrs()?.next().ok_or(Error::BadAddress)?;
-    let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
-    stream.set_nodelay(true)?;
+    let stream = connect(&host, port, Duration::from_secs(10))?;
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     let mut writer = PacketWriter::new(stream.try_clone()?);
     let mut reader = PacketReader::new(stream);

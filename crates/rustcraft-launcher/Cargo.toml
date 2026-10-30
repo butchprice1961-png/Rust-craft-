@@ -16,6 +16,7 @@ rustcraft-assets.workspace = true
 rustcraft-auth.workspace = true
 rustcraft-mods.workspace = true
 rustcraft-platform.workspace = true
+rustcraft-protocol.workspace = true
 eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "links", "wayland", "x11", "wgpu", "glow"] }
 winit = "0.30.13"
 open.workspace = true

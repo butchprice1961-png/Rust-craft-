@@ -3661,6 +3661,7 @@ dependencies = [
  "rustcraft-core",
  "rustcraft-mods",
  "rustcraft-platform",
+ "rustcraft-protocol",
  "serde",
  "serde_json",
  "tempfile",

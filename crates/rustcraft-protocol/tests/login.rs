@@ -11,7 +11,7 @@ use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 
 use rustcraft_protocol::codec::{Buf, Put};
 use rustcraft_protocol::conn::{PacketReader, PacketWriter};
-use rustcraft_protocol::login::server_hash;
+use rustcraft_protocol::login::{server_hash, status};
 use rustcraft_protocol::packets::decode;
 use rustcraft_protocol::{Clientbound, Error, Profile, Session, join, send};
 
@@ -172,5 +172,29 @@ fn offline_servers_need_no_account_and_online_ones_do() {
         Err(other) => panic!("{other}"),
         Ok(_) => panic!("joined a server that kicked us"),
     }
+    server_thread.join().unwrap();
+}
+
+#[test]
+fn status_ping_reports_version_and_players() {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = server.local_addr().unwrap().to_string();
+    let server_thread = thread::spawn(move || {
+        let (mut r, mut w) = accept(&server);
+        let (_, hello) = r.read().unwrap();
+        let mut b = Buf(&hello);
+        b.varint().unwrap();
+        b.string(255).unwrap();
+        b.u16().unwrap();
+        assert_eq!(b.varint().unwrap(), 1, "next state is status");
+        assert_eq!(r.read().unwrap(), (0x00, Vec::new()));
+        let json = r#"{"version":{"name":"Paper 1.20.4","protocol":765},"players":{"max":100,"online":7},"description":{"text":"§aA server"}}"#;
+        let mut response = Vec::new();
+        response.string(json);
+        w.write(0x00, &response).unwrap();
+    });
+    let s = status(&address, std::time::Duration::from_secs(5)).unwrap();
+    assert_eq!((s.version.as_str(), s.protocol, s.players), ("Paper 1.20.4", 765, (7, 100)));
+    assert_eq!(s.description, "A server");
     server_thread.join().unwrap();
 }

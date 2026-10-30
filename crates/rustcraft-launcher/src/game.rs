@@ -138,6 +138,24 @@ async fn prepare_native(core: &Core, inst: &Instance) -> Result<Prepared, Launch
         packs.push(jar);
     }
     let server = inst.server.clone().filter(|s| !s.trim().is_empty());
+    if let Some(address) = server.clone() {
+        // A newer server would only kick the engine with "outdated client".
+        let ping = tokio::task::spawn_blocking(move || {
+            rustcraft_protocol::login::status(&address, Duration::from_secs(5)).map(|s| (address, s))
+        })
+        .await?;
+        match ping {
+            Ok((address, s)) if s.protocol != rustcraft_protocol::PROTOCOL_VERSION => {
+                return Err(fail(format!(
+                    "{address} runs {} (protocol {}). The RustCraft engine only joins Minecraft 1.8 servers; \
+                     use an instance with the official Java client for this one.",
+                    s.version, s.protocol
+                )));
+            }
+            Ok(_) => {}
+            Err(e) => tracing::warn!("server list ping failed ({e}); joining anyway"),
+        }
+    }
     let mut accounts = core.accounts.lock().await;
     let account = accounts.active().cloned();
     // Online-mode servers need a session; offline-mode ones accept any name.
